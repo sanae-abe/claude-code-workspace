@@ -15,7 +15,7 @@ This repository is my personal backup and configuration management for Claude Co
 
 ```
 claude-code-workspace/
-├── commands/              # Custom slash commands (23 commands)
+├── commands/              # Custom slash commands (21 commands)
 │   ├── analyze.md        # Project health assessment
 │   ├── branch.md         # Git branch creation with conventions
 │   ├── clean-jobs.md     # Safe background job cleanup
@@ -23,7 +23,6 @@ claude-code-workspace/
 │   ├── debug.md          # Universal debugging workflow
 │   ├── decide.md         # Framework-driven decision support
 │   ├── explain.md        # Explain project features
-│   ├── i18n-check.md     # Internationalization status check
 │   ├── implement.md      # Document-driven task implementation
 │   ├── iterative-review.md  # Multi-perspective code review
 │   ├── optimize.md       # Performance optimization
@@ -32,24 +31,30 @@ claude-code-workspace/
 │   ├── research.md       # Systematic technology research
 │   ├── review-pr.md      # GitLab MR/GitHub PR review
 │   ├── review-quality.md # LLM implementation quality evaluation
-│   ├── serena.md         # Semantic code analysis (MCP)
 │   ├── ship.md           # GitHub PR/GitLab MR creation
 │   ├── todo.md           # Intelligent task management
 │   ├── update-docs.md    # Documentation synchronization
 │   ├── validate.md       # Multi-layer quality gate validation
 │   ├── web-dev.md        # Frontend development server
 │   └── worktree.md       # Git worktree management
-├── stacks/                # Technology stack configurations (6 stacks)
-│   ├── backend-api.md    # Backend API development settings
-│   ├── data-science.md   # Data science workflow settings
-│   ├── frontend-web.md   # Frontend web development settings
-│   ├── mobile-app.md     # Mobile app development settings
-│   ├── rust-cli.md       # Rust CLI development settings
-│   ├── shell-cli.md      # Shell scripting standards (POSIX)
-│   └── slash-command-design.md  # Command design guidelines
+├── rules/                 # Development rules and standards
+│   └── tech-stacks/      # Technology stack configurations (10 stacks)
+│       ├── backend-api.md    # Backend API development settings
+│       ├── css-coding-standards.md  # CSS/SCSS coding standards
+│       ├── data-science.md   # Data science workflow settings
+│       ├── frontend-web.md   # Frontend web development settings
+│       ├── mobile-app.md     # Mobile app development settings
+│       ├── rust-cli.md       # Rust CLI development settings
+│       ├── shell-cli.md      # Shell scripting standards (POSIX)
+│       ├── slash-command-design.md  # Command design guidelines
+│       ├── swift-macos-ios.md  # Swift development for macOS/iOS
+│       └── vue-nuxt.md       # Vue 3 / Nuxt 3-4 development rules
 ├── skills/                # Integrated Claude skills
 │   ├── anthropic-skills/ # Official Anthropic skills
-│   └── superpowers/      # Community skill collection
+│   ├── superpowers/      # Community skill collection
+│   ├── i18n-check.md     # Internationalization status check
+│   ├── serena.md         # Semantic code analysis (MCP)
+│   └── ca-vm.md          # CA VM management skill
 ├── CLAUDE.md             # LLM behavior configuration
 ├── USER_GUIDE.md         # User-facing documentation
 ├── settings.json         # Claude Code system settings
@@ -80,9 +85,9 @@ ln -sf ~/projects/claude-code-workspace/commands/*.md ~/.claude/commands/
 ln -sf ~/projects/claude-code-workspace/CLAUDE.md ~/.claude/CLAUDE.md
 ln -sf ~/projects/claude-code-workspace/settings.json ~/.claude/settings.json
 
-# Link stacks
-mkdir -p ~/.claude/stacks
-ln -sf ~/projects/claude-code-workspace/stacks/*.md ~/.claude/stacks/
+# Link tech stacks
+mkdir -p ~/.claude/rules/tech-stacks
+ln -sf ~/projects/claude-code-workspace/rules/tech-stacks/*.md ~/.claude/rules/tech-stacks/
 ```
 
 ### Verify Setup
@@ -166,15 +171,6 @@ ln -sf ~/projects/claude-code-workspace/stacks/*.md ~/.claude/stacks/
 - CLAUDE.md and slash command quality evaluation
 - LLM-friendly scoring with actionable feedback
 
-**`/serena`** - Semantic code analysis using Serena MCP
-- Usage: `/serena [query or operation]`
-- Advanced semantic code search and analysis
-- MCP-powered intelligent code understanding
-
-**`/i18n-check`** - Internationalization status check
-- Usage: `/i18n-check [language] [--coverage|--consistency|--format|--cultural|--complete]`
-- Translation coverage, consistency, format validation
-
 **`/validate`** - Multi-layer quality gate validation
 - Usage: `/validate [--layers=all|syntax,security] [--auto-fix] [--report=text|json]`
 - Layer 1-2: Syntax & formatting (auto-fix)
@@ -213,16 +209,36 @@ ln -sf ~/projects/claude-code-workspace/stacks/*.md ~/.claude/stacks/
 - Pattern-based auto-classification (dev servers, DB, Docker)
 - Session-scoped, safe cleanup operations
 
+### Integrated Skills
+
+**i18n-check** - Internationalization status check
+- Usage: Via Skill tool
+- Translation coverage, consistency, format validation
+- Cultural adaptation and completeness checks
+
+**serena** - Semantic code analysis using Serena MCP
+- Usage: Via Skill tool
+- Advanced semantic code search and analysis
+- MCP-powered intelligent code understanding
+
+**ca-vm** - CA VM management
+- Usage: Via Skill tool
+- VM lifecycle management and operations
+
 ## 🎯 Technology Stack Configurations
 
-Available in `stacks/` directory:
+Available in `rules/tech-stacks/` directory:
 
 1. **frontend-web.md** - React/Vue/Angular, component architecture, state management
-2. **backend-api.md** - REST/GraphQL, database patterns, API security
-3. **mobile-app.md** - iOS/Android, cross-platform frameworks
-4. **data-science.md** - Jupyter, data pipelines, ML/AI workflows
-5. **rust-cli.md** - Rust patterns, CLI frameworks, error handling
-6. **shell-cli.md** - POSIX compliance (52 standards), security practices
+2. **vue-nuxt.md** - Vue 3 / Nuxt 3-4 development rules, Composition API, SSR patterns
+3. **backend-api.md** - REST/GraphQL, database patterns, API security
+4. **mobile-app.md** - iOS/Android, cross-platform frameworks
+5. **swift-macos-ios.md** - Swift 5.9+, SwiftUI/UIKit, macOS/iOS native development
+6. **data-science.md** - Jupyter, data pipelines, ML/AI workflows
+7. **rust-cli.md** - Rust patterns, CLI frameworks, error handling
+8. **shell-cli.md** - POSIX compliance (52 standards), security practices
+9. **css-coding-standards.md** - CSS/SCSS coding standards, accessibility, performance
+10. **slash-command-design.md** - Command design guidelines for Claude Code
 
 ### Using Stack Configurations
 
@@ -281,9 +297,10 @@ last-modified: 2025-11-13
 ### Documentation
 
 - Command docs: `commands/*.md`
-- Stack docs: `stacks/*.md`
-- Design guide: `stacks/slash-command-design.md`
+- Tech stack docs: `rules/tech-stacks/*.md`
+- Design guide: `rules/tech-stacks/slash-command-design.md`
 - Decision frameworks: `docs/decision-frameworks.md` - ICE/RICE scoring, First Principles, practical workflows
+- LLM quality standards: `docs/llm-quality-framework.md`
 
 ### Integrated Skills
 
@@ -335,5 +352,5 @@ MIT License - Personal use
 
 ---
 
-**Last Updated**: 2025-11-16
+**Last Updated**: 2025-12-26
 **Status**: Active personal workspace
