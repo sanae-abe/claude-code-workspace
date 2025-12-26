@@ -177,7 +177,7 @@ ELIF タスク種別 == "CLI実装・スクリプト作成・自動化ツール"
      プロジェクト言語検出不可（package.json, Cargo.toml, go.mod等が存在しない）:
     # 独立CLI/スクリプトの場合のみ言語選択ロジック適用
     # 既存プロジェクト内のCLI追加は #10 技術スタック判定で処理
-    # 詳細: ~/.claude/stacks/{rust,python,shell}-cli.md
+    # 詳細: ~/.claude/rules/tech-stacks/{rust,python,shell}-cli.md
     # セキュリティリスク判定は #4 で既に処理済み
     IF データ処理・API連携（CSV/JSON/YAML、REST API、統計計算）:
         python-pro agent
@@ -347,7 +347,7 @@ ELSE:
 - 編集後フロー: フォーマッター → リンター → テスト
 - セキュリティ: OWASP対応・入力検証・出力エスケープ
 - テスト: 新機能カバレッジ・既存機能影響確認
-- 詳細: `~/.claude/stacks/{tech}.md`
+- 詳細: `~/.claude/rules/tech-stacks/{tech}.md`
 
 #### 5層品質ゲートシステム
 
@@ -510,7 +510,7 @@ CLAUDE.mdを編集する際は以下の原則を厳守：
 - `~/.claude/settings.json` - Claude Code システム設定
 - `~/.claude/CLAUDE.md` - LLM向け動作設定（このファイル）
 - `~/.claude/USER_GUIDE.md` - ユーザー向けガイド
-- `~/.claude/stacks/*.md` - 技術スタック別設定
+- `~/.claude/rules/tech-stacks/*.md` - 技術スタック別設定
 - `project/.claude/CLAUDE.md` - プロジェクト固有設定
 
 ---
@@ -521,7 +521,7 @@ CLAUDE.mdを編集する際は以下の原則を厳守：
 
 **3層構造**:
 1. **基盤層**: `~/.claude/CLAUDE.md` (技術中立的な開発フロー・セキュリティ基準)
-2. **技術層**: `~/.claude/stacks/{tech-stack}.md` (技術スタック別設定)
+2. **技術層**: `~/.claude/rules/tech-stacks/{tech-stack}.md` (技術スタック別設定)
 3. **プロジェクト層**: `project/.claude/CLAUDE.md` (プロジェクト固有設定)
 
 **継承例**:
@@ -541,24 +541,24 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 ### 技術スタック別設定ファイル
 
 技術スタック別の詳細設定は以下のファイルを参照：
-- `~/.claude/stacks/frontend-web.md` - Web Frontend開発
-- `~/.claude/stacks/backend-api.md` - API Backend開発
-- `~/.claude/stacks/mobile-app.md` - Mobile App開発
-- `~/.claude/stacks/data-science.md` - Data Science開発
-- `~/.claude/stacks/rust-cli.md` - Rust CLI開発
-- `~/.claude/stacks/shell-cli.md` - Shell CLI開発（POSIX準拠の完全基準）
-- `~/.claude/stacks/css-coding-standards.md` - CSS規約（アクセシビリティ・パフォーマンス重視）
+- `~/.claude/rules/tech-stacks/frontend-web.md` - Web Frontend開発
+- `~/.claude/rules/tech-stacks/backend-api.md` - API Backend開発
+- `~/.claude/rules/tech-stacks/mobile-app.md` - Mobile App開発
+- `~/.claude/rules/tech-stacks/data-science.md` - Data Science開発
+- `~/.claude/rules/tech-stacks/rust-cli.md` - Rust CLI開発
+- `~/.claude/rules/tech-stacks/shell-cli.md` - Shell CLI開発（POSIX準拠の完全基準）
+- `~/.claude/rules/tech-stacks/css-coding-standards.md` - CSS規約（アクセシビリティ・パフォーマンス重視）
 
 ### 設計・開発ガイドライン
 
 **スラッシュコマンド開発**:
-- `~/.claude/stacks/slash-command-design.md` - LLM最適化されたコマンド設計指針
+- `~/.claude/rules/tech-stacks/slash-command-design.md` - LLM最適化されたコマンド設計指針
 
 **CSS開発**:
-- `~/.claude/stacks/css-coding-standards.md` - 包括的CSS規約
-- `~/.claude/stacks/.stylelintrc.json` - Stylelint設定（共有用）
-- `~/.claude/stacks/.prettierrc` - Prettier設定（共有用）
-- `~/.claude/stacks/README-css-configs.md` - CSS設定ファイル使用ガイド
+- `~/.claude/rules/tech-stacks/css-coding-standards.md` - 包括的CSS規約
+- `~/.claude/rules/tech-stacks/.stylelintrc.json` - Stylelint設定（共有用）
+- `~/.claude/rules/tech-stacks/.prettierrc` - Prettier設定（共有用）
+- `~/.claude/rules/tech-stacks/README-css-configs.md` - CSS設定ファイル使用ガイド
 
 
 ---
@@ -579,7 +579,7 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 ## 外部設定参照
 
 **開発時参照**:
-- 技術判断: `~/.claude/stacks/{tech}.md`
+- 技術判断: `~/.claude/rules/tech-stacks/{tech}.md`
 - 品質検証: `~/.claude/validation/layers/*.md`
 - セキュリティパターン: `~/.claude/validation/security-patterns.json`
 - OWASPチェックリスト: `~/.claude/validation/owasp-top10-checklist.md`
