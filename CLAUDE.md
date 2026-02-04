@@ -2,12 +2,6 @@
 
 > **このファイルについて**: LLM向けに最適化された設定ファイル。編集時もLLM最適化を維持すること。ユーザー向け情報は `~/.claude/USER_GUIDE.md` に記載。
 
-## コミュニケーション言語
-
-**ユーザーとの会話言語**: 日本語
-- 全ての応答、質問、説明を日本語で行う
-- AskUserQuestionの質問・選択肢も日本語
-
 ## 基本開発フロー
 
 ### 1. 要件分析・計画
@@ -89,7 +83,7 @@ acceptance_criteria: ["基準1", "基準2"]
 # → docsも自動読込
 ```
 
-**詳細**: `commands/implement.md` "Interactive Mode" section
+**詳細**: `skills/implement.md` "Interactive Mode" section
 
 #### 並行開発の判定（最優先で評価）
 
@@ -357,7 +351,7 @@ ELSE:
 3. **Layer 5 (security)**: セキュリティ（最重要）- .env検出、認証情報スキャン、OWASP
 
 **実行**: `/validate --layers=syntax,security --auto-fix`（実装完了後の必須フロー）
-**詳細**: `commands/validate.md`
+**詳細**: `skills/validate.md`
 
 ### 4. タスク完了・クリーンアップ
 
@@ -372,7 +366,7 @@ THEN:
     # パターンベース自動分類:
     #   - 開発サーバー・watchモード → 自動停止
     #   - DB・Docker・ビルド → 継続実行
-    # 詳細: commands/clean-jobs.md
+    # 詳細: skills/clean-jobs.md
 ```
 
 ---
@@ -598,8 +592,8 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 - Figma連携: `~/.claude/docs/mcp-figma-rules.md`
 
 **コマンド実装**:
-- /implement: `commands/implement.md`
-- /validate: `commands/validate.md`
+- /implement: `skills/implement.md`
+- /validate: `skills/validate.md`
 
 ---
 
