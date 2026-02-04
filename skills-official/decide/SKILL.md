@@ -879,3 +879,22 @@ Export enables critical workflows, Dark mode is cosmetic preference.
 - Question: "What options or question would you like to evaluate?"
 - User provides input via "Other" option
 - Proceed with detection and analysis
+
+---
+
+## Reference Documentation
+
+**詳細なフレームワークガイド**: `frameworks.md` (同じディレクトリ内)
+
+内容:
+- フレームワーク選択ガイド（状況別推奨表）
+- 詳細な評価基準（Confidence, Impact, Easeの10段階評価）
+- 実践的ワークフロー（パターンA/B/C）
+- 追加フレームワーク（SCAMPER, Jobs-to-be-Done）
+- アンチパターン集（失敗例と対策）
+- 計算テンプレート（YAMLフォーマット）
+
+**使用方法**:
+- 基本的な意思決定: SKILL.md内の埋め込みフレームワークで十分
+- 詳細な評価基準が必要: frameworks.md参照
+- 新しいフレームワーク学習: frameworks.md参照
