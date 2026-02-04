@@ -36,7 +36,7 @@ Lightweight task management for ad-hoc, document-free tasks that don't require f
 ### Execution Flow
 
 1. Parse arguments from $ARGUMENTS
-2. Validate and sanitize input (security check using ~/.claude/utils/todo_validation.py)
+2. Validate and sanitize input (security check using todo_validation.py)
 3. Determine action: add, complete, uncomplete, remove, list, sync, next, or interactive mode
 4. Locate or create todo.md file in project root
 5. Execute requested action (see Commands section)
@@ -60,7 +60,7 @@ Parse $ARGUMENTS to extract:
 
 ### Input Validation
 
-**All inputs must pass validation using ~/.claude/utils/todo_validation.py**:
+**All inputs must pass validation using todo_validation.py**:
 
 ```python
 from todo_validation import validate_path, sanitize_input, validate_task_id
@@ -365,3 +365,19 @@ Action: Show next priority task based on due date and priority
 
 Input: /todo sync
 Action: Import pending tasks from tasks.yml to todo.md with Created=sync date, tags from type field
+
+---
+
+## Reference Files
+
+**Input validation utilities**: `todo_validation.py` (同じディレクトリ内)
+- Security-focused validation for file paths, user input, task IDs
+- Functions:
+  - `validate_path()`: Path traversal prevention
+  - `sanitize_input()`: Unicode normalization, length limits
+  - `validate_task_id()`: task-N format validation
+  - `safe_error_message()`: Sanitize error messages
+  - `validate_priority()`: Priority value validation
+  - `validate_tags()`: Tag format validation
+
+**Usage**: All user inputs in /todo command must pass validation before processing
