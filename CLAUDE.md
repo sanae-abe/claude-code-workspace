@@ -83,7 +83,7 @@ acceptance_criteria: ["基準1", "基準2"]
 # → docsも自動読込
 ```
 
-**詳細**: `skills/implement.md` "Interactive Mode" section
+**詳細**: `skills-official/implement/SKILL.md` "Interactive Mode" section
 
 #### 並行開発の判定（最優先で評価）
 
@@ -351,7 +351,7 @@ ELSE:
 3. **Layer 5 (security)**: セキュリティ（最重要）- .env検出、認証情報スキャン、OWASP
 
 **実行**: `/validate --layers=syntax,security --auto-fix`（実装完了後の必須フロー）
-**詳細**: `skills/validate.md`
+**詳細**: `skills-official/validate/SKILL.md`
 
 ### 4. タスク完了・クリーンアップ
 
@@ -366,7 +366,7 @@ THEN:
     # パターンベース自動分類:
     #   - 開発サーバー・watchモード → 自動停止
     #   - DB・Docker・ビルド → 継続実行
-    # 詳細: skills/clean-jobs.md
+    # 詳細: skills-official/clean-jobs/SKILL.md
 ```
 
 ---
@@ -548,6 +548,12 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 **スラッシュコマンド開発**:
 - `~/.claude/rules/tech-stacks/slash-command-design.md` - LLM最適化されたコマンド設計指針
 
+**スキル構造（Claude Code公式形式）**:
+- **ディレクトリ型**: `~/.claude/skills/skill-name/SKILL.md` 形式必須
+- **Frontmatter**: `name` と `description` のみ（`allowed-tools`, `argument-hint`, `model` は非推奨）
+- **配置**: `skills-official/` ディレクトリに実ファイル、`~/.claude/skills/` にシンボリックリンク
+- **参考**: `~/.claude/skills/anthropic-skills/*/SKILL.md` （公式スキル例）
+
 **CSS開発**:
 - `~/.claude/rules/tech-stacks/css-coding-standards.md` - 包括的CSS規約
 - `~/.claude/rules/tech-stacks/.stylelintrc.json` - Stylelint設定（共有用）
@@ -592,8 +598,8 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 - Figma連携: `~/.claude/docs/mcp-figma-rules.md`
 
 **コマンド実装**:
-- /implement: `skills/implement.md`
-- /validate: `skills/validate.md`
+- /implement: `skills-official/implement/SKILL.md`
+- /validate: `skills-official/validate/SKILL.md`
 
 ---
 
