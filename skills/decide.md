@@ -1,7 +1,7 @@
 ---
-allowed-tools: Read, AskUserQuestion
+allowed-tools: AskUserQuestion
 argument-hint: "<question-or-options>"
-description: Framework-driven decision support for tech choices and priority ranking
+description: Zero-dependency decision support using embedded frameworks (ICE/RICE/First Principles)
 model: sonnet
 ---
 
@@ -22,11 +22,10 @@ Output: Conclusion-first format with comparison tables
 
 ## Execution Flow
 
-1. Read decision-frameworks.md for framework reference
-2. Parse and validate $ARGUMENTS
-3. Auto-detect decision type and output format
-4. Apply appropriate framework (ICE/RICE/Eisenhower/First Principles)
-5. Generate conclusion-first output with detailed analysis
+1. Parse and validate $ARGUMENTS
+2. Auto-detect decision type and output format
+3. Apply appropriate framework (ICE/RICE/Eisenhower/First Principles - embedded in this skill)
+4. Generate conclusion-first output with detailed analysis
 
 ## Argument Validation
 
@@ -48,7 +47,7 @@ If $ARGUMENTS empty or unclear:
 Security:
 - No file path processing required
 - No Bash execution needed
-- Read-only access to decision-frameworks.md
+- All frameworks embedded in skill (no external file access)
 
 ### Implementation Example
 
@@ -123,52 +122,231 @@ Step 2: Detect framework type from $ARGUMENTS
 Step 3: Apply selected framework and generate output
 ```
 
-## Framework Reference
+## Framework Reference (Embedded)
 
-Read required file:
+The following frameworks are embedded in this skill for zero-dependency operation.
+
+### フレームワーク選択ガイド
+
+| 状況 | 推奨フレームワーク | 理由 |
+|------|------------------|------|
+| タスク数が多い（10+件） | Eisenhower Matrix | 高速な粗選別が可能 |
+| 技術的な優先順位付け | ICE Score | 開発工数（Ease）を考慮 |
+| プロダクト機能の判断 | RICE Score | ユーザーリーチを重視 |
+| 緊急の意思決定 | Eisenhower Matrix | 5分で判断可能 |
+| 不確実性が高い | ICE Score (Confidenceを重視) | リスク評価が容易 |
+| 問題の本質理解 | First Principles | 常識を疑い根本から考える |
+
+---
+
+### 1. Eisenhower Matrix（アイゼンハワーマトリクス）
+
+**緊急度と重要度で4象限に分類**:
+
 ```
-Read ~/.claude/docs/decision-frameworks.md
+              緊急           緊急でない
+重要      1. 今すぐやる    2. スケジュールする
+重要でない  3. 委任する      4. やらない
 ```
 
-Path validation:
-- Fixed path: ~/.claude/docs/decision-frameworks.md
-- No user input dependency - path is hardcoded
-- No path traversal risk - fixed location only
-- Validation: Read tool's built-in security checks
+**適用例**:
+- タスクA: 象限2（重要だが緊急でない）→ スケジュール実施
+- タスクB: 象限4（重要でも緊急でもない）→ 削除
 
-Performance characteristics:
-- File size: Typically <10KB
-- Read latency: <10ms
-- Caching: OS-level caching for repeated access in same session
-- Impact: Negligible performance overhead
+**判断基準**:
+- **重要**: ゴール達成に直接影響、技術的負債の解消、セキュリティ対応
+- **緊急**: 期限が迫っている、ブロッカーになっている、ユーザー影響大
 
-If file read fails:
-- Report error with file location (exit code 3)
-- Suggest checking symbolic link at ~/.claude/docs/decision-frameworks.md
-- Exit without attempting analysis
+---
+
+### 2. ICE Score（Impact, Confidence, Ease）
+
+**各タスクを3軸で評価**:
+
+```
+ICE Score = (Impact × Confidence × Ease) / 3
+```
+
+**評価軸**:
+- **Impact（影響度）**: 1-10点
+- **Confidence（確信度）**: 0-100%（0.0-1.0で計算）
+- **Ease（容易さ）**: 1-10点（10=最も容易）
+
+**適用例**:
+
+```yaml
+高速化機能-A:
+  Impact: 7        # DX向上
+  Confidence: 90%  # 確実に効果あり
+  Ease: 10         # 10分で実装
+  ICE Score: (7 × 0.9 × 10) / 3 = 21.0 ⭐⭐⭐
+
+自動化機能-B:
+  Impact: 3        # リグレッション防止
+  Confidence: 30%  # 事例なし
+  Ease: 1          # 8-11時間
+  ICE Score: (3 × 0.3 × 1) / 3 = 0.3 ❌
+```
+
+**判断基準**:
+- **20以上**: 最優先（即実施）
+- **10-20**: 高優先（スケジュール実施）
+- **5-10**: 中優先（バックログ管理）
+- **5未満**: 低優先（削除候補）
+
+**Impact評価基準**:
+- **10**: システム全体に影響、ビジネスクリティカル
+- **7-9**: 主要機能への影響、DX大幅向上
+- **4-6**: 限定的だが明確な改善
+- **1-3**: 軽微な改善、限定的な影響
+
+**Ease評価基準**:
+- **10**: 10-30分（設定変更、ドキュメント追記）
+- **7-9**: 1-3時間（小規模機能追加）
+- **4-6**: 1日-1週間（中規模機能実装）
+- **1-3**: 1週間以上（大規模リファクタリング）
+
+---
+
+### 3. RICE Score（Reach, Impact, Confidence, Effort）
+
+**より詳細な優先順位付け**:
+
+```
+RICE Score = (Reach × Impact × Confidence) / Effort
+```
+
+**評価軸**:
+- **Reach（リーチ）**: 影響を受けるユーザー数/利用頻度（期間内）
+- **Impact（影響度）**: 0.25/0.5/1/2/3（1人あたりの影響）
+- **Confidence（確信度）**: 0-100%
+- **Effort（工数）**: 人月（例: 10分 = 0.003人月）
+
+**Impact評価基準**:
+- **3**: ゲームチェンジャー（劇的な改善）
+- **2**: 高い影響（顕著な改善）
+- **1**: 中程度の影響（明確な改善）
+- **0.5**: 低い影響（小さな改善）
+- **0.25**: 最小限の影響（微細な改善）
+
+**判断基準（相対評価）**:
+- 上位20%: 最優先
+- 上位20-50%: 高優先
+- 上位50-80%: 中優先
+- 下位20%: 削除候補
+
+---
+
+### 4. Confidence評価の根拠基準
+
+**判定基準**:
+- **90-100%**: 過去に同様の成功事例あり、または実データあり
+- **70-90%**: 類似事例から推測可能
+- **50-70%**: 仮説段階だが論理的根拠あり
+- **50%未満**: 不確実性が高い（Spikeで検証推奨）
+
+**適用例**:
+```yaml
+高速化機能-A:
+  Confidence: 90%
+  根拠: |
+    - 関連ドキュメント・実装が既に存在
+    - 類似機能の実装で技術的難易度は既知
+    - 過去の類似実装で成功実績あり
+
+新技術導入-D:
+  Confidence: 40%
+  根拠: |
+    - 新技術スタックのため事例なし
+    - 技術調査（Spike）が必要
+    → Spike（1-2日）で70%以上に引き上げてから判断
+```
+
+---
+
+### 5. First Principles Thinking（第一原理思考）
+
+**常識を疑い、根本原理から考え直す**:
+
+**ステップ**:
+1. 前提を明確化
+2. 前提を分解
+3. 根本原理から再構築
+
+**適用例**:
+
+```yaml
+前提: "テストがあれば品質が上がる"
+
+分解:
+  - テストが品質向上に寄与するのはいつ？
+    → リグレッションが頻繁に起こる場合
+  - 現状はリグレッションが起きているか？
+    → 過去1年間0件
+
+根本原理から再構築:
+  → リグレッションが起きてから書けば良い（YAGNI）
+  → 今は実装しない
+```
+
+**適用場面**:
+- 「常識」「ベストプラクティス」を疑うとき
+- 既存の解決策が複雑すぎるとき
+- イノベーションが必要なとき
+
+---
+
+### 実践的ワークフロー
+
+**パターンA: 大量タスクの優先順位付け**
+
+```
+1. Eisenhower Matrix で粗選別（象限1-2に絞る）
+2. ICE Score で詳細評価
+3. First Principles で上位3件を検証（本当に必要か？）
+4. 実施
+```
+
+**パターンB: 新機能の意思決定**
+
+```
+1. First Principles で問題の本質を理解
+2. RICE Score で複数案を比較
+3. Pre-mortem でリスク洗い出し
+4. Build-Measure-Learn で小さく試す
+```
+
+**パターンC: 緊急対応**
+
+```
+1. Eisenhower Matrix で象限1（緊急かつ重要）を特定
+2. ICE Score で Confidence と Ease を重視（速く確実に）
+3. 実施
+```
+
+---
+
+### アンチパターン
+
+**失敗1: スコアリングの機械的適用**
+- 問題: ICE Scoreが高いからといって盲目的に実施
+- 対策: 上位3件は必ずFirst Principlesで再検証
+
+**失敗2: Confidence過大評価**
+- 問題: 「たぶんできる」を80%で評価
+- 対策: 過去の類似事例がなければ50%未満、不確実性が高い場合はSpike実施
+
+**失敗3: Effortの楽観視**
+- 問題: 「30分」が実際は3時間に
+- 対策: 見積もりに1.5-2倍のバッファ、過去の実績データを参照
+
+**失敗4: Reachの過大評価**
+- 問題: 「全ユーザーが使う」と想定したが実際は一部のみ
+- 対策: 実データ、アナリティクスで検証、保守的に見積もる
+
+---
 
 ## Error Handling
-
-### decision-frameworks.md Read Failure
-
-```bash
-# Pattern for LLM to follow (not executed as Bash)
-if ! Read ~/.claude/docs/decision-frameworks.md; then
-    echo "ERROR: decision-frameworks.md not found"
-    echo "File: decide.md:129 - Framework Reference"
-    echo ""
-    echo "Resolution:"
-    echo "1. Check symbolic link: ls -la ~/.claude/docs/decision-frameworks.md"
-    echo "2. Verify source file exists at ~/projects/claude-code-workspace/docs/decision-frameworks.md"
-    echo "3. Recreate symlink if needed"
-    exit 3
-fi
-```
-
-LLM implementation:
-- Use Read tool to access decision-frameworks.md
-- If Read fails, output error message above
-- Exit with code 3 (System error)
 
 ### Empty $ARGUMENTS Handling
 
@@ -377,7 +555,7 @@ Reconstruction from fundamentals:
 
 ### Confidence Criteria
 
-From decision-frameworks.md:
+Evaluation guidelines (from embedded framework):
 - 90-100%: Past success cases exist, real data available
 - 70-90%: Inferable from similar cases
 - 50-70%: Hypothesis stage with logical basis
@@ -464,16 +642,6 @@ Required items:
 
 ## Error Handling
 
-decision-frameworks.md read failure:
-```
-ERROR: decision-frameworks.md not found
-
-Resolution:
-1. Check symbolic link: ls -la ~/.claude/docs/decision-frameworks.md
-2. Check actual file: ls -la ~/projects/claude-code-workspace/docs/decision-frameworks.md
-3. Report to user if recreation needed
-```
-
 Unclear $ARGUMENTS:
 ```
 IF $ARGUMENTS empty OR ambiguous:
@@ -505,8 +673,8 @@ Recommended workflow:
 
 ```bash
 # 0: Success - Decision analysis completed with recommendation
-# 1: User error - Arguments missing, unclear question
-# 3: System error - decision-frameworks.md not found, Read tool failed
+# 1: User error - Arguments missing, unclear question, invalid input format
+# 3: System error - Read tool failed, AskUserQuestion tool failed
 ```
 
 ### Usage in LLM Implementation
@@ -535,15 +703,15 @@ IF $ARGUMENTS contains invalid characters (edge case):
 
 **Exit code 3 (System error)**:
 ```
-IF Read decision-frameworks.md fails:
-    Output: "ERROR: decision-frameworks.md not found"
-            "File: decide.md:129 - Framework Reference"
-            "Resolution: [steps to fix]"
-    Exit: 3
-
 IF Read tool unavailable (system failure):
     Output: "ERROR: Read tool failed"
-            "File: decide.md:129 - Framework Reference"
+            "File: decide.md:129 - Embedded Framework Access"
+            "System error - retry or report issue"
+    Exit: 3
+
+IF AskUserQuestion tool fails (system error):
+    Output: "ERROR: AskUserQuestion tool failed"
+            "File: decide.md:44 - Interactive Input"
             "System error - retry or report issue"
     Exit: 3
 ```
@@ -564,12 +732,10 @@ try {
         }
     }
 
-    // Step 2: Read framework reference
-    const frameworks = Read("~/.claude/docs/decision-frameworks.md")
-    if (!frameworks) {
-        reportError("decision-frameworks.md not found", 3)
-        return EXIT_CODE_3
-    }
+    // Step 2: Load embedded frameworks
+    // All frameworks are embedded in this skill (lines 126-388)
+    // No external file reads required
+    const frameworks = loadEmbeddedFrameworks()
 
     // Step 3: Perform analysis
     const result = analyzeWithFramework(ARGUMENTS, frameworks)
@@ -620,16 +786,16 @@ Development Efficiency Risk: LOW - Zod reduces boilerplate
 
 **Error example**:
 ```
-ERROR: decision-frameworks.md not found
-File: decide.md:load_frameworks
+ERROR: Invalid input format
+File: decide.md:33 - Argument Validation
 
-Reason: Required reference document missing
-Got: File not found at ~/.claude/docs/decision-frameworks.md
+Reason: Input contains special characters or malformed syntax
+Got: "Option A vs Option B @#$%"
 
 Suggestions:
-1. Check symbolic link: ls -la ~/.claude/docs/decision-frameworks.md
-2. Verify source file exists
-3. Recreate symlink if needed
+1. Remove special characters from input
+2. Use plain text format
+3. Example: "Option A vs Option B"
 ```
 
 ## Examples
