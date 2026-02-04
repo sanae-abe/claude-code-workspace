@@ -15,31 +15,14 @@ This repository is my personal backup and configuration management for Claude Co
 
 ```
 claude-code-workspace/
-├── skills/                # Custom skills (24 skills)
-│   ├── analyze.md        # Project health assessment
-│   ├── branch.md         # Git branch creation with conventions
-│   ├── ca-vm.md          # CA-VM integration
-│   ├── clean-jobs.md     # Safe background job cleanup
-│   ├── commit.md         # Conventional Commits with emoji
-│   ├── debug.md          # Universal debugging workflow
-│   ├── decide.md         # Framework-driven decision support
-│   ├── explain.md        # Explain project features
-│   ├── i18n-check.md     # Internationalization checker
-│   ├── implement.md      # Document-driven task implementation
-│   ├── iterative-review.md  # Multi-perspective code review
-│   ├── optimize.md       # Performance optimization
-│   ├── plan-review.md    # Implementation planning with review
-│   ├── refactor.md       # Safe incremental refactoring
-│   ├── research.md       # Systematic technology research
-│   ├── review-pr.md      # GitLab MR/GitHub PR review
-│   ├── review-quality.md # LLM implementation quality evaluation
-│   ├── serena.md         # Serena MCP integration
-│   ├── ship.md           # GitHub PR/GitLab MR creation
-│   ├── todo.md           # Intelligent task management
-│   ├── update-docs.md    # Documentation synchronization
-│   ├── validate.md       # Multi-layer quality gate validation
-│   ├── web-dev.md        # Frontend development server
-│   └── worktree.md       # Git worktree management
+├── skills-official/       # Symlinks to ~/.claude/skills/ (project reference)
+│   ├── analyze -> ~/.claude/skills/analyze
+│   ├── branch -> ~/.claude/skills/branch
+│   ├── commit -> ~/.claude/skills/commit
+│   ├── decide -> ~/.claude/skills/decide
+│   ├── implement -> ~/.claude/skills/implement
+│   ├── todo -> ~/.claude/skills/todo
+│   └── ... (24 skills total)
 ├── rules/                 # Development rules and standards
 │   └── tech-stacks/      # Technology stack configurations (10 stacks)
 │       ├── backend-api.md    # Backend API development settings
@@ -52,12 +35,6 @@ claude-code-workspace/
 │       ├── slash-command-design.md  # Command design guidelines
 │       ├── swift-macos-ios.md  # Swift development for macOS/iOS
 │       └── vue-nuxt.md       # Vue 3 / Nuxt 3-4 development rules
-├── skills/                # Integrated Claude skills
-│   ├── anthropic-skills/ # Official Anthropic skills
-│   ├── superpowers/      # Community skill collection
-│   ├── i18n-check.md     # Internationalization status check
-│   ├── serena.md         # Semantic code analysis (MCP)
-│   └── ca-vm.md          # CA VM management skill
 ├── CLAUDE.md             # LLM behavior configuration
 ├── USER_GUIDE.md         # User-facing documentation
 ├── settings.json         # Claude Code system settings
@@ -73,7 +50,10 @@ claude-code-workspace/
 
 ### Installation
 
-Since this is already set up in my environment at `~/projects/claude-code-workspace`, commands and configurations are symlinked to `~/.claude/`.
+**Note**: Skills are now directly managed in `~/.claude/skills/` (not in this repository). This repository provides:
+- Project-specific symlinks in `skills-official/` (for reference)
+- Configuration files (`CLAUDE.md`, `settings.json`)
+- Tech stack rules and documentation
 
 To restore from backup or set up on a new machine:
 
@@ -81,8 +61,8 @@ To restore from backup or set up on a new machine:
 # Clone repository
 git clone <this-repo-url> ~/projects/claude-code-workspace
 
-# Link skills
-ln -sf ~/projects/claude-code-workspace/skills/*.md ~/.claude/skills/
+# Skills are managed in ~/.claude/skills/ directly
+# (No need to link skills - they're already there)
 
 # Link configuration files
 ln -sf ~/projects/claude-code-workspace/CLAUDE.md ~/.claude/CLAUDE.md
@@ -92,6 +72,10 @@ ln -sf ~/projects/claude-code-workspace/settings.json ~/.claude/settings.json
 mkdir -p ~/.claude/rules/tech-stacks
 ln -sf ~/projects/claude-code-workspace/rules/tech-stacks/*.md ~/.claude/rules/tech-stacks/
 ```
+
+**Skills Location**: All custom skills (24 total) are in `~/.claude/skills/skill-name/SKILL.md` format.
+- `skills-official/` in this repo contains symlinks for reference only
+- See `SKILL_MIGRATION.md` for directory structure details
 
 ### Verify Setup
 
@@ -299,10 +283,11 @@ last-modified: 2025-11-13
 
 ### Documentation
 
-- Skill docs: `skills/*.md`
+- Skill docs: `~/.claude/skills/*/SKILL.md` (master), `skills-official/` (symlinks)
+- Skill migration guide: `SKILL_MIGRATION.md` - Directory structure details
 - Tech stack docs: `rules/tech-stacks/*.md`
 - Design guide: `rules/tech-stacks/slash-command-design.md`
-- Decision frameworks: `docs/decision-frameworks.md` - ICE/RICE scoring, First Principles, practical workflows
+- Decision frameworks: `~/.claude/skills/decide/frameworks.md` - ICE/RICE scoring, First Principles
 - LLM quality standards: `docs/llm-quality-framework.md`
 
 ### Integrated Skills
@@ -331,17 +316,31 @@ All commands enforce OWASP Top 10, input validation, secure patterns.
 ### Skills Not Appearing
 
 ```bash
+# Check if skills exist and are readable
 ls -la ~/.claude/skills/
-chmod 644 ~/.claude/skills/*.md
+ls -la ~/.claude/skills/*/SKILL.md
+
+# Fix permissions if needed
+chmod 755 ~/.claude/skills/*/
+chmod 644 ~/.claude/skills/*/SKILL.md
+
 # Restart Claude Code CLI
 ```
 
-### Symlinks Broken
+### Symlinks Broken (skills-official/)
 
 ```bash
-mkdir -p ~/.claude/skills/ ~/.claude/rules/
-ls -la ~/.claude/
+# Check if ~/.claude/skills/ exists
+ls -la ~/.claude/skills/
+
+# Verify symlinks in project
+ls -la ~/projects/claude-code-workspace/skills-official/
+
+# If symlinks are broken, they point to wrong location
+# Fix by recreating symlinks (if needed)
 ```
+
+**Note**: `skills-official/` symlinks are project-specific references only. Skills work from `~/.claude/skills/` directly.
 
 ### Configuration Issues
 

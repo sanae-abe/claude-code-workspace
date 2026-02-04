@@ -57,27 +57,56 @@ description: Create Conventional Commits with emoji formatting
 - すべての SKILL.md ファイルを LF 改行コードに統一
 - `.gitattributes` 追加で今後の CRLF 問題を防止
 
-### 4. ディレクトリ構成
+### 4. ディレクトリ構造の反転（2025-02-04追加）
+
+**目的**: ディレクトリ構成を一般的なパターンに準拠させる
+
+**変更前**:
+- 実体: `skills-official/`
+- シンボリックリンク: `~/.claude/skills/ -> skills-official/`
+
+**変更後**:
+- 実体: `~/.claude/skills/`（標準的なスキル配置場所）
+- シンボリックリンク: `skills-official/ -> ~/.claude/skills/`（プロジェクト固有参照）
+
+**利点**:
+- 標準的なClaude Codeスキル配置（`~/.claude/skills/`）に準拠
+- 他プロジェクトでも `~/.claude/skills/` を直接利用可能
+- 関連ファイルも含めて自己完結型スキル構造
+
+### 5. 最終ディレクトリ構成
 
 ```
+~/.claude/skills/                   # マスターリポジトリ（実体）
+  ├── commit/
+  │   ├── SKILL.md
+  │   └── （関連ファイル）
+  ├── decide/
+  │   ├── SKILL.md
+  │   └── frameworks.md              # 関連ファイル
+  ├── implement/
+  │   ├── SKILL.md
+  │   ├── tasks.schema.json          # 関連ファイル
+  │   └── tasks.template.yml         # 関連ファイル
+  ├── todo/
+  │   ├── SKILL.md
+  │   └── todo_validation.py         # 関連ファイル
+  └── ...
+
 claude-code-workspace/
-  ├── skills/                        # 元のスキルファイル（後方互換性のため保持）
-  │   ├── commit.md
-  │   ├── branch.md
-  │   └── ...
-  ├── skills-official/               # 公式形式のスキル
-  │   ├── commit/
-  │   │   └── SKILL.md
-  │   ├── branch/
-  │   │   └── SKILL.md
+  ├── skills-official/               # シンボリックリンクの集合
+  │   ├── commit -> ~/.claude/skills/commit
+  │   ├── decide -> ~/.claude/skills/decide
+  │   ├── implement -> ~/.claude/skills/implement
+  │   ├── todo -> ~/.claude/skills/todo
   │   └── ...
   └── .gitattributes                # 改行コード設定
-
-~/.claude/skills/
-  ├── commit -> /path/to/skills-official/commit/      # シンボリックリンク
-  ├── branch -> /path/to/skills-official/branch/
-  └── ...
 ```
+
+**構造の意図**:
+- `~/.claude/skills/`: 標準的なスキル配置場所（実体ファイル）
+- `skills-official/`: プロジェクト固有の参照（シンボリックリンク）
+- 関連ファイルも `~/.claude/skills/` 配下に配置（自己完結型）
 
 ## 変換されたスキル（24個）
 
@@ -110,18 +139,19 @@ claude-code-workspace/
 
 以下のパス参照を更新:
 
-1. **スキル構造セクション追加**:
+1. **スキル構造セクション**:
    ```markdown
    **スキル構造（Claude Code公式形式）**:
    - **ディレクトリ型**: `~/.claude/skills/skill-name/SKILL.md` 形式必須
    - **Frontmatter**: `name` と `description` のみ
-   - **配置**: `skills-official/` ディレクトリに実ファイル、`~/.claude/skills/` にシンボリックリンク
+   - **配置**: `~/.claude/skills/` に実ファイル、`skills-official/` はシンボリックリンク
+   - **関連ファイル**: スキルディレクトリ内に配置（`frameworks.md`, `todo_validation.py`等）
    ```
 
-2. **パス参照更新**（5箇所）:
-   - `skills/implement.md` → `skills-official/implement/SKILL.md`
-   - `skills/validate.md` → `skills-official/validate/SKILL.md`
-   - `skills/clean-jobs.md` → `skills-official/clean-jobs/SKILL.md`
+2. **パス参照**:
+   - プロジェクト内から: `skills-official/skill-name/SKILL.md` （シンボリックリンク経由）
+   - 直接参照: `~/.claude/skills/skill-name/SKILL.md` （実体）
+   - 関連ファイル: `~/.claude/skills/skill-name/関連ファイル名`
 
 ## 参考資料
 
@@ -156,12 +186,38 @@ claude-code-workspace/
    - 新しい会話を開始
    - スキルリストに表示されるか確認
 
-## 変換スクリプト
+## 新しいスキルの追加方法
 
-将来的に新しいスキルを追加する場合、`skills/convert-to-official-format.sh` を使用できます。
+1. **~/.claude/skills/ に直接作成**:
+   ```bash
+   mkdir ~/.claude/skills/new-skill
+   cat > ~/.claude/skills/new-skill/SKILL.md <<'EOF'
+   ---
+   name: new-skill
+   description: New skill description
+   ---
 
-```bash
-# 使用例
-cd /path/to/claude-code-workspace/skills
-./convert-to-official-format.sh
-```
+   # New Skill
+
+   Arguments: $ARGUMENTS
+
+   ## Execution Flow
+   ...
+   EOF
+   ```
+
+2. **プロジェクトからシンボリックリンク作成**（オプション）:
+   ```bash
+   cd /path/to/claude-code-workspace/skills-official
+   ln -s ~/.claude/skills/new-skill new-skill
+   git add new-skill
+   ```
+
+3. **関連ファイルの追加**:
+   ```bash
+   # 関連ファイルはスキルディレクトリ内に配置
+   cp config.json ~/.claude/skills/new-skill/
+
+   # SKILL.mdから相対パスで参照
+   # 例: `config.json` (同じディレクトリ内)
+   ```
