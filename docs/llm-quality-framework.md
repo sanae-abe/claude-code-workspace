@@ -75,7 +75,32 @@
 
 ## 対象別評価チェックリスト
 
-### スラッシュコマンド評価チェックリスト
+### スキル構造の前提知識
+
+**Claude Code公式形式**:
+```
+~/.claude/skills/
+  skill-name/           # ディレクトリ型（公式形式）
+    SKILL.md            # ファイル名固定
+```
+
+**Frontmatter形式**:
+```yaml
+---
+name: skill-name
+description: What this skill does
+---
+```
+
+**非推奨フィールド**: `allowed-tools`, `argument-hint`, `model`（公式仕様にない）
+
+**参考**: `~/.claude/skills/anthropic-skills/*/SKILL.md` （公式スキル例）
+
+---
+
+### スキル評価チェックリスト
+
+**対象**: `~/.claude/skills/*/SKILL.md` ファイル（Claude Code公式形式）
 
 #### Accuracy（正確性）
 
@@ -225,23 +250,35 @@ Overall = Accuracy × 0.4 + Maintainability × 0.4 + Usability × 0.2
 ### 1. 新規作成時
 
 ```bash
-# スラッシュコマンド作成
-vi ~/.claude/commands/new-command.md
+# スキルディレクトリ作成
+mkdir -p ~/.claude/skills/new-skill
+
+# SKILL.md作成（公式形式）
+cat > ~/.claude/skills/new-skill/SKILL.md << 'EOF'
+---
+name: new-skill
+description: Brief description of what this skill does
+---
+
+# Skill Name
+
+[Instructions here]
+EOF
 
 # 品質評価
-/review-quality ~/.claude/commands/new-command.md
+/review-quality ~/.claude/skills/new-skill/SKILL.md
 
 # スコア90%未満の場合は改善後に再評価
 ```
 
-### 2. 既存ファイル改善時
+### 2. 既存スキル改善時
 
 ```bash
 # 改善案をiterative-reviewで評価
-/iterative-review ~/.claude/commands/existing.md
+/iterative-review ~/.claude/skills/existing-skill/SKILL.md
 
 # 修正後に品質確認
-/review-quality ~/.claude/commands/existing.md
+/review-quality ~/.claude/skills/existing-skill/SKILL.md
 ```
 
 ### 3. CLAUDE.md編集時
@@ -261,6 +298,8 @@ wc -l ~/.claude/CLAUDE.md
 
 ## 参照
 
-- `/review-quality` コマンド: 自動評価ツール
-- `/iterative-review` コマンド: 多角的レビュー（necessity, security, performance, maintainability）
+- `/review-quality` スキル: 自動評価ツール (`~/.claude/skills/review-quality/SKILL.md`)
+- `/iterative-review` スキル: 多角的レビュー (`~/.claude/skills/iterative-review/SKILL.md`)
 - CLAUDE.md編集ルール: LLM最適化の原則
+- スキル構造仕様: `SKILL_MIGRATION.md` （スキル移行ガイド）
+- 公式スキル例: `~/.claude/skills/anthropic-skills/*/SKILL.md`

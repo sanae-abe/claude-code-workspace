@@ -1,9 +1,14 @@
 ---
-allowed-tools: Bash, Read, Grep, Glob, TodoWrite, AskUserQuestion
-argument-hint: "<file-path> [--report=text|json]"
+name: review-quality
 description: Evaluate LLM implementation quality of CLAUDE.md or skills
-model: sonnet
 ---
+
+<!-- Original metadata:
+  allowed-tools: Bash, Read, Grep, Glob, TodoWrite, AskUserQuestion
+  argument-hint: "<file-path> [--report=text|json]"
+  model: sonnet
+-->
+
 
 # review-quality
 

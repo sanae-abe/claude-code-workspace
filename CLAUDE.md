@@ -83,7 +83,7 @@ acceptance_criteria: ["基準1", "基準2"]
 # → docsも自動読込
 ```
 
-**詳細**: `skills/implement.md` "Interactive Mode" section
+**詳細**: `skills-official/implement/SKILL.md` "Interactive Mode" section
 
 #### 並行開発の判定（最優先で評価）
 
@@ -95,11 +95,11 @@ IF 以下のいずれか該当:
     - レビュー待ち機能あり AND 新規開発開始
     - 現在ブランチ == "main" AND 未コミット変更あり
 THEN:
-    1. SlashCommand("/worktree create [branch-name]") 実行
+    1. Skill tool実行: `/worktree create [branch-name]`
        # branch-name = feature-*/bugfix-*/experiment-*/hotfix-*
     2. ユーザーに "cd ../worktree-[branch-name]" 提示
     3. ポート管理: 3001, 3002, 3003... を指示
-    4. 完了後は /worktree merge [branch-name] でクリーンアップ
+    4. 完了後は `/worktree merge [branch-name]` でクリーンアップ
     SKIP 以下の実装方法判定（worktree内で並行作業）
 ```
 
@@ -304,7 +304,7 @@ ELSE:
 
 **実装完了後の必須フロー**（順次実行）:
 ```
-1. SlashCommand("/validate --layers=syntax,security --auto-fix")
+1. Skill tool実行: `/validate --layers=syntax,security --auto-fix`
    # Layer 1-2: 構文・フォーマット自動修正（TypeScript, ESLint, Prettier）
    # Layer 5: セキュリティ検証（.env変更, 認証情報スキャン, OWASP）
    # IF 失敗 → エラー報告 → 修正要求 → SKIP 以下
@@ -351,7 +351,7 @@ ELSE:
 3. **Layer 5 (security)**: セキュリティ（最重要）- .env検出、認証情報スキャン、OWASP
 
 **実行**: `/validate --layers=syntax,security --auto-fix`（実装完了後の必須フロー）
-**詳細**: `skills/validate.md`
+**詳細**: `skills-official/validate/SKILL.md`
 
 ### 4. タスク完了・クリーンアップ
 
@@ -362,11 +362,11 @@ IF タスク完了（以下のいずれか）:
     - TodoWrite最終todo completed
     - ユーザーが「完了」「done」「finish」明示
 THEN:
-    SlashCommand("/clean-jobs --auto")
+    Skill tool実行: `/clean-jobs --auto`
     # パターンベース自動分類:
     #   - 開発サーバー・watchモード → 自動停止
     #   - DB・Docker・ビルド → 継続実行
-    # 詳細: skills/clean-jobs.md
+    # 詳細: skills-official/clean-jobs/SKILL.md
 ```
 
 ---
@@ -545,8 +545,15 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 
 ### 設計・開発ガイドライン
 
-**スラッシュコマンド開発**:
-- `~/.claude/rules/tech-stacks/slash-command-design.md` - LLM最適化されたコマンド設計指針
+**スキル開発ガイドライン**:
+- `~/.claude/rules/tech-stacks/slash-command-design.md` - スキル設計指針（LLM最適化）
+- `SKILL_MIGRATION.md` - スキル構造移行ガイド
+
+**スキル構造（Claude Code公式形式）**:
+- **ディレクトリ型**: `~/.claude/skills/skill-name/SKILL.md` 形式必須
+- **Frontmatter**: `name` と `description` のみ（`allowed-tools`, `argument-hint`, `model` は非推奨）
+- **配置**: `skills-official/` ディレクトリに実ファイル、`~/.claude/skills/` にシンボリックリンク
+- **参考**: `~/.claude/skills/anthropic-skills/*/SKILL.md` （公式スキル例）
 
 **CSS開発**:
 - `~/.claude/rules/tech-stacks/css-coding-standards.md` - 包括的CSS規約
@@ -591,9 +598,11 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 - AutoFlow統合: `~/.claude/docs/autoflow-integration-guide.md`
 - Figma連携: `~/.claude/docs/mcp-figma-rules.md`
 
-**コマンド実装**:
-- /implement: `skills/implement.md`
-- /validate: `skills/validate.md`
+**主要スキル実装**:
+- /implement: `skills-official/implement/SKILL.md`
+- /validate: `skills-official/validate/SKILL.md`
+- /commit: `skills-official/commit/SKILL.md`
+- /ship: `skills-official/ship/SKILL.md`
 
 ---
 
