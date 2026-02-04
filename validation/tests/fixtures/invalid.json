@@ -1,8 +1,0 @@
-{
-  "name": "test-project",
-  "version": "1.0.0",
-  "description": "Invalid JSON - missing closing brace",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Test\""
-  }
