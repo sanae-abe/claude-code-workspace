@@ -48,11 +48,11 @@ Claude Codeの効率的な使い方、スラッシュコマンド、設定シス
 ├── CLAUDE.md                    # LLM向け基本設定（技術中立）
 ├── README.md                    # このファイル（ユーザー向けガイド）
 ├── settings.json                # Claude Code システム設定
-├── commands/                    # スラッシュコマンド定義
+├── skills/                      # Skills定義
 │   ├── debug.md
-│   ├── feature.md
+│   ├── implement.md
 │   └── ...
-├── stacks/                      # 技術スタック別設定
+├── rules/                       # 開発ルール・技術スタック設定
 │   ├── frontend-web.md
 │   ├── backend-api.md
 │   ├── mobile-app.md
@@ -287,8 +287,8 @@ cldev lr problems
 
 ## 関連ドキュメント
 
-- **スラッシュコマンド**: `~/.claude/commands/`
-- **技術スタック設定**: `~/.claude/stacks/`
+- **Skills**: `~/.claude/skills/`
+- **技術スタック設定**: `~/.claude/rules/tech-stacks/`
 - **ケーススタディ**: `~/.claude/docs/case-studies.md`
 - **実装ロードマップ**: `~/.claude/docs/roadmap.md`
 - **コマンド実装状況**: `~/.claude/docs/command-dashboard.md`
@@ -301,11 +301,11 @@ cldev lr problems
 2. Claude Code を再起動
 3. 設定ファイルのバックアップから復元
 
-### コマンドが動作しない
+### Skillが動作しない
 
-1. `/help` でコマンド一覧を確認
-2. `~/.claude/commands/{command}.md` の存在確認
-3. コマンドファイルの構文エラーチェック
+1. `/help` でskill一覧を確認
+2. `~/.claude/skills/{skill}.md` の存在確認
+3. Skillファイルの構文エラーチェック
 
 ### パフォーマンスが遅い
 

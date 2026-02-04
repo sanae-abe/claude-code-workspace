@@ -15,14 +15,16 @@ This repository is my personal backup and configuration management for Claude Co
 
 ```
 claude-code-workspace/
-├── commands/              # Custom slash commands (21 commands)
+├── skills/                # Custom skills (24 skills)
 │   ├── analyze.md        # Project health assessment
 │   ├── branch.md         # Git branch creation with conventions
+│   ├── ca-vm.md          # CA-VM integration
 │   ├── clean-jobs.md     # Safe background job cleanup
 │   ├── commit.md         # Conventional Commits with emoji
 │   ├── debug.md          # Universal debugging workflow
 │   ├── decide.md         # Framework-driven decision support
 │   ├── explain.md        # Explain project features
+│   ├── i18n-check.md     # Internationalization checker
 │   ├── implement.md      # Document-driven task implementation
 │   ├── iterative-review.md  # Multi-perspective code review
 │   ├── optimize.md       # Performance optimization
@@ -31,6 +33,7 @@ claude-code-workspace/
 │   ├── research.md       # Systematic technology research
 │   ├── review-pr.md      # GitLab MR/GitHub PR review
 │   ├── review-quality.md # LLM implementation quality evaluation
+│   ├── serena.md         # Serena MCP integration
 │   ├── ship.md           # GitHub PR/GitLab MR creation
 │   ├── todo.md           # Intelligent task management
 │   ├── update-docs.md    # Documentation synchronization
@@ -78,8 +81,8 @@ To restore from backup or set up on a new machine:
 # Clone repository
 git clone <this-repo-url> ~/projects/claude-code-workspace
 
-# Link commands
-ln -sf ~/projects/claude-code-workspace/commands/*.md ~/.claude/commands/
+# Link skills
+ln -sf ~/projects/claude-code-workspace/skills/*.md ~/.claude/skills/
 
 # Link configuration files
 ln -sf ~/projects/claude-code-workspace/CLAUDE.md ~/.claude/CLAUDE.md
@@ -296,7 +299,7 @@ last-modified: 2025-11-13
 
 ### Documentation
 
-- Command docs: `commands/*.md`
+- Skill docs: `skills/*.md`
 - Tech stack docs: `rules/tech-stacks/*.md`
 - Design guide: `rules/tech-stacks/slash-command-design.md`
 - Decision frameworks: `docs/decision-frameworks.md` - ICE/RICE scoring, First Principles, practical workflows
@@ -325,18 +328,18 @@ All commands enforce OWASP Top 10, input validation, secure patterns.
 
 ## 🐛 Troubleshooting
 
-### Commands Not Appearing
+### Skills Not Appearing
 
 ```bash
-ls -la ~/.claude/commands/
-chmod 644 ~/.claude/commands/*.md
+ls -la ~/.claude/skills/
+chmod 644 ~/.claude/skills/*.md
 # Restart Claude Code CLI
 ```
 
 ### Symlinks Broken
 
 ```bash
-mkdir -p ~/.claude/commands/ ~/.claude/stacks/
+mkdir -p ~/.claude/skills/ ~/.claude/rules/
 ls -la ~/.claude/
 ```
 

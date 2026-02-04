@@ -1,7 +1,7 @@
 ---
 allowed-tools: Read, Grep, Glob, TodoWrite, AskUserQuestion
 argument-hint: "<file-path> [--report=text|json]"
-description: Evaluate LLM implementation quality of CLAUDE.md or slash commands
+description: Evaluate LLM implementation quality of CLAUDE.md or skills
 model: sonnet
 ---
 
@@ -33,14 +33,14 @@ Quantitatively evaluate whether documentation/commands are optimized for LLM imp
 ## Execution Flow
 
 1. Parse arguments (file path, report format)
-2. Identify target type (CLAUDE.md, slash command, other)
+2. Identify target type (CLAUDE.md, skill, other)
 3. Apply type-specific evaluation criteria
 4. Generate quality score with evidence
 5. Provide actionable improvement suggestions
 
 ## Evaluation Criteria by Type
 
-### For Slash Commands
+### For Skills
 
 **Accuracy Evaluation**:
 - [ ] Bash syntax examples present (IFS, parameter expansion, etc.)
@@ -107,7 +107,7 @@ For each low-scoring dimension, identify:
 🔍 LLM Implementation Quality Report
 
 File: <file-path>
-Type: <CLAUDE.md / Slash Command / Other>
+Type: <CLAUDE.md / Skill / Other>
 Date: <YYYY-MM-DD>
 
 ═══════════════════════════════════════
@@ -244,7 +244,7 @@ if [[ -z "$TARGET_FILE" ]]; then
     echo "File: review-quality.md:238 - Argument Validation"
     echo ""
     echo "Usage: /review-quality <file-path> [--report=text|json]"
-    echo "Example: /review-quality ~/.claude/commands/ship.md"
+    echo "Example: /review-quality ~/.claude/skills/ship.md"
     exit $EXIT_USER_ERROR
 fi
 
@@ -253,8 +253,8 @@ validate_file_path "$TARGET_FILE" || exit $?
 # Identify type
 if [[ "$TARGET_FILE" == *"CLAUDE.md" ]]; then
     TARGET_TYPE="CLAUDE.md"
-elif [[ "$TARGET_FILE" == *.md ]] && [[ "$TARGET_FILE" == *"/commands/"* ]]; then
-    TARGET_TYPE="slash-command"
+elif [[ "$TARGET_FILE" == *.md ]] && [[ "$TARGET_FILE" == *"/skills/"* ]]; then
+    TARGET_TYPE="skill"
 else
     TARGET_TYPE="other"
 fi
@@ -269,7 +269,7 @@ echo ""
 # Calculate scores based on criteria met
 # Generate quality report with evidence
 
-# For Slash Commands (L45-67):
+# For Skills (L45-67):
 # - Check Bash syntax examples: Grep for '```bash'
 # - Check error handling: Grep for 'exit \$EXIT_'
 # - Check file:line references: Grep for 'File:.*\.md:[0-9]'
@@ -294,8 +294,8 @@ echo "Report format: $REPORT_FORMAT"
 ## Examples
 
 ```bash
-# Evaluate slash command
-/review-quality ~/.claude/commands/validate.md
+# Evaluate skill
+/review-quality ~/.claude/skills/validate.md
 
 # Evaluate CLAUDE.md with JSON output
 /review-quality ~/.claude/CLAUDE.md --report=json
@@ -335,8 +335,8 @@ Exit codes are defined as constants in Implementation section (L175-179):
 
 2. Use absolute path instead of relative:
    ```bash
-   # Instead of: /review-quality ../commands/ship.md
-   /review-quality ~/.claude/commands/ship.md
+   # Instead of: /review-quality ../skills/ship.md
+   /review-quality ~/.claude/skills/ship.md
    ```
 
 3. Check current directory:
@@ -359,7 +359,7 @@ Exit codes are defined as constants in Implementation section (L175-179):
 
 2. Navigate to directory first:
    ```bash
-   cd ~/.claude/commands
+   cd ~/.claude/skills
    /review-quality validate.md
    ```
 
@@ -400,7 +400,7 @@ Exit codes are defined as constants in Implementation section (L175-179):
 
 **Symptoms**: Accuracy score low, "Bash syntax examples" marked as missing
 
-**Solutions** (for slash command files):
+**Solutions** (for skill files):
 1. Add code blocks with bash syntax:
    ````markdown
    ```bash
