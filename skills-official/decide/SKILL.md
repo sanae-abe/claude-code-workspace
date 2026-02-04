@@ -127,220 +127,25 @@ Step 2: Detect framework type from $ARGUMENTS
 Step 3: Apply selected framework and generate output
 ```
 
-## Framework Reference (Embedded)
+## Framework Reference (Quick Guide)
 
-The following frameworks are embedded in this skill for zero-dependency operation.
+### Available Frameworks
 
-### Framework Selection Guide
+**1. ICE Score**: `(Impact × Confidence × Ease) / 3`
+- Impact: 1-10, Confidence: 0-100%, Ease: 1-10
+- Priority: 20+ = Highest, 10-20 = High, 5-10 = Medium, <5 = Low
 
-| Situation | Recommended Framework | Reason |
-|-----------|----------------------|--------|
-| Large number of tasks (10+) | Eisenhower Matrix | Fast rough filtering |
-| Technical prioritization | ICE Score | Considers development effort (Ease) |
-| Product feature decisions | RICE Score | Emphasizes user reach |
-| Urgent decision making | Eisenhower Matrix | 5-minute decision possible |
-| High uncertainty | ICE Score (emphasize Confidence) | Easy risk assessment |
-| Understanding problem essence | First Principles | Question assumptions, think from fundamentals |
+**2. RICE Score**: `(Reach × Impact × Confidence) / Effort`
+- Reach: user count/frequency, Impact: 0.25-3, Effort: person-months
+- Priority: Relative ranking (top 20% = highest)
 
+**3. Eisenhower Matrix**: Urgent/Important quadrants
+- Quadrant 1: Do now, Quadrant 2: Schedule, Quadrant 3: Delegate, Quadrant 4: Don't do
 
-### 1. Eisenhower Matrix
+**4. First Principles**: Question assumptions, reconstruct from fundamentals
+- Apply YAGNI principle, verify necessity
 
-**Classify into 4 quadrants by urgency and importance**:
-
-```
-              Urgent           Not Urgent
-Important   1. Do now        2. Schedule
-Not Important 3. Delegate      4. Don't do
-```
-
-**Application examples**:
-- Task A: Quadrant 2 (important but not urgent) → Schedule implementation
-- Task B: Quadrant 4 (neither important nor urgent) → Delete
-
-**Judgment criteria**:
-- **Important**: Directly impacts goal achievement, resolves technical debt, security response
-- **Urgent**: Deadline approaching, blocking other work, high user impact
-
-
-### 2. ICE Score (Impact, Confidence, Ease)
-
-**Evaluate each task on 3 axes**:
-
-```
-ICE Score = (Impact × Confidence × Ease) / 3
-```
-
-**Evaluation axes**:
-- **Impact**: 1-10 points
-- **Confidence**: 0-100% (calculate as 0.0-1.0)
-- **Ease**: 1-10 points (10 = easiest)
-
-**Application examples**:
-
-```yaml
-Optimization-Feature-A:
-  Impact: 7        # DX improvement
-  Confidence: 90%  # Certain effect
-  Ease: 10         # 10-minute implementation
-  ICE Score: (7 × 0.9 × 10) / 3 = 21.0 ⭐⭐⭐
-
-Automation-Feature-B:
-  Impact: 3        # Regression prevention
-  Confidence: 30%  # No precedent
-  Ease: 1          # 8-11 hours
-  ICE Score: (3 × 0.3 × 1) / 3 = 0.3 ❌
-```
-
-**Judgment criteria**:
-- **20+**: Highest priority (immediate implementation)
-- **10-20**: High priority (scheduled implementation)
-- **5-10**: Medium priority (backlog management)
-- **<5**: Low priority (deletion candidate)
-
-**Impact evaluation criteria**:
-- **10**: System-wide impact, business-critical
-- **7-9**: Major feature impact, significant DX improvement
-- **4-6**: Limited but clear improvement
-- **1-3**: Minor improvement, limited impact
-
-**Ease evaluation criteria**:
-- **10**: 10-30 minutes (config change, doc update)
-- **7-9**: 1-3 hours (small feature addition)
-- **4-6**: 1 day - 1 week (medium feature implementation)
-- **1-3**: 1+ weeks (large-scale refactoring)
-
-
-### 3. RICE Score (Reach, Impact, Confidence, Effort)
-
-**More detailed prioritization**:
-
-```
-RICE Score = (Reach × Impact × Confidence) / Effort
-```
-
-**Evaluation axes**:
-- **Reach**: Number of affected users / usage frequency (within period)
-- **Impact**: 0.25/0.5/1/2/3 (impact per person)
-- **Confidence**: 0-100%
-- **Effort**: Person-months (e.g., 10 minutes = 0.003 person-months)
-
-**Impact evaluation criteria**:
-- **3**: Game changer (dramatic improvement)
-- **2**: High impact (significant improvement)
-- **1**: Medium impact (clear improvement)
-- **0.5**: Low impact (small improvement)
-- **0.25**: Minimal impact (minor improvement)
-
-**Judgment criteria (relative evaluation)**:
-- Top 20%: Highest priority
-- Top 20-50%: High priority
-- Top 50-80%: Medium priority
-- Bottom 20%: Deletion candidate
-
-
-### 4. Confidence Evaluation Criteria
-
-**Judgment criteria**:
-- **90-100%**: Past success cases exist, or real data available
-- **70-90%**: Inferable from similar cases
-- **50-70%**: Hypothesis stage with logical basis
-- **<50%**: High uncertainty (Spike validation recommended)
-
-**Application examples**:
-```yaml
-Optimization-Feature-A:
-  Confidence: 90%
-  Rationale: |
-    - Related documentation and implementation already exist
-    - Technical difficulty known from similar feature implementation
-    - Success track record from past similar implementations
-
-New-Technology-Adoption-D:
-  Confidence: 40%
-  Rationale: |
-    - No precedent due to new tech stack
-    - Technical investigation (Spike) required
-    → Raise to 70%+ via Spike (1-2 days) before deciding
-```
-
-
-### 5. First Principles Thinking
-
-**Question assumptions, rethink from fundamental principles**:
-
-**Steps**:
-1. Clarify assumptions
-2. Decompose assumptions
-3. Reconstruct from fundamental principles
-
-**Application example**:
-
-```yaml
-Assumption: "Tests improve quality"
-
-Decomposition:
-  - When do tests contribute to quality improvement?
-    → When regressions occur frequently
-  - Are regressions occurring currently?
-    → Zero cases in the past year
-
-Reconstruction from fundamentals:
-  → Write tests when regressions occur (YAGNI)
-  → Do not implement now
-```
-
-**Application scenarios**:
-- When questioning "common sense" or "best practices"
-- When existing solutions are too complex
-- When innovation is needed
-
-
-### Practical Workflows
-
-**Pattern A: Prioritizing Large Number of Tasks**
-
-```
-1. Rough filter with Eisenhower Matrix (narrow to quadrants 1-2)
-2. Detailed evaluation with ICE Score
-3. Verify top 3 with First Principles (truly necessary?)
-4. Implement
-```
-
-**Pattern B: New Feature Decision Making**
-
-```
-1. Understand problem essence with First Principles
-2. Compare multiple options with RICE Score
-3. Identify risks with Pre-mortem
-4. Test small with Build-Measure-Learn
-```
-
-**Pattern C: Emergency Response**
-
-```
-1. Identify quadrant 1 (urgent and important) with Eisenhower Matrix
-2. Emphasize Confidence and Ease with ICE Score (fast and certain)
-3. Implement
-```
-
-
-### Anti-Patterns
-
-**Failure 1: Mechanical Application of Scoring**
-- Problem: Blindly implementing based on high ICE Score
-- Solution: Always re-verify top 3 candidates with First Principles
-
-**Failure 2: Overestimating Confidence**
-- Problem: Rating "probably doable" as 80%
-- Solution: <50% without past similar cases, conduct Spike if high uncertainty
-
-**Failure 3: Optimistic Effort Estimation**
-- Problem: "30 minutes" actually takes 3 hours
-- Solution: Add 1.5-2x buffer to estimates, reference past performance data
-
-**Failure 4: Overestimating Reach**
-- Problem: Assumed "all users will use it" but actually only a subset
-- Solution: Verify with real data and analytics, estimate conservatively
+**詳細な評価基準・ワークフロー・アンチパターン**: `frameworks.md` 参照
 
 
 ## Error Handling
@@ -511,131 +316,48 @@ Reason: [Eisenhower Matrix + ICE Score + First Principles integration]
 
 ## Framework Application
 
-### ICE Score Calculation
-
-For each option:
-```
-Impact: 1-10 (DX improvement, performance, business value)
-Confidence: 0-100% (past success cases, available data)
-Ease: 1-10 (implementation effort, learning cost)
-
-ICE Score = (Impact × Confidence × Ease) / 3
-
-Priority levels:
-- 20+: Highest priority (immediate)
-- 10-20: High priority (scheduled)
-- 5-10: Medium priority (backlog)
-- <5: Low priority (reject)
-```
+### Scoring Requirements
 
 Always include rationale for each score:
-- Impact: Specific effect on system/users
-- Confidence: Evidence source (past cases, data, logical reasoning)
-- Ease: Time estimate and complexity assessment
+- **Impact**: Specific effect on system/users
+- **Confidence**: Evidence source (past cases, data, logical reasoning)
+- **Ease**: Time estimate and complexity assessment
 
 ### First Principles Verification
 
-For top candidates:
+For top candidates, apply YAGNI principle:
 ```
-Premise: "[Assumption being made]"
-
-Decomposition:
-- Question 1: "When does [benefit] occur?"
-- Answer: "[Specific condition]"
-- Question 2: "Is current situation problematic?"
-- Answer: "[Current state analysis]"
-
-Reconstruction from fundamentals:
-- Conclusion: "[Is this truly necessary? YAGNI application?]"
-- Decision: "MUST/YAGNI/CONDITIONAL - [reasoning]"
+Premise → Decomposition → Reconstruction from fundamentals
+Decision: MUST/YAGNI/CONDITIONAL
 ```
 
-### Confidence Criteria
-
-Evaluation guidelines (from embedded framework):
-- 90-100%: Past success cases exist, real data available
-- 70-90%: Inferable from similar cases
-- 50-70%: Hypothesis stage with logical basis
-- <50%: High uncertainty → Recommend Spike (technical validation)
-
-### Risk Assessment
+### Risk Assessment Template
 
 For each top option:
 ```
-Security Risk (highest priority):
-- Level: HIGH/MEDIUM/LOW
-- Specific risk: [Details]
-- Confidence: [percentage] (Basis: [evidence])
-- Mitigation: [Countermeasures]
-
-Technical Risk:
-- Level: HIGH/MEDIUM/LOW
-- Specific risk: [Breaking changes, performance, maintainability]
-- Confidence: [percentage]
-- Mitigation: [Countermeasures]
-
-Development Efficiency Risk:
-- Level: HIGH/MEDIUM/LOW
-- Specific risk: [Effort increase, learning cost]
-- Confidence: [percentage]
-- Mitigation: [Countermeasures]
+Security Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
+Technical Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
+Development Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
 ```
 
 ## Output Requirements
 
 ### Conclusion-First Format
 
-Mandatory structure:
 ```
 ## Conclusion: [Clear recommendation]
-
 Reason: [Score + key rationale in 1-2 sentences]
 
 ## Detailed Analysis
 [Framework-specific analysis]
 ```
 
-### Numerical Justification
+### Quality Standards
 
-Bad example:
-```
-Impact: 7
-```
-
-Good example:
-```
-Impact: 7 (Used 100 times/week, significant DX improvement, affects core features)
-```
-
-### Confidence Over-Estimation Prevention
-
-Judgment flow:
-```
-IF past success cases exist OR real data available:
-    Confidence: 90-100%
-ELIF inferable from similar cases:
-    Confidence: 70-90%
-ELIF hypothesis with logical basis:
-    Confidence: 50-70%
-ELSE:
-    Confidence: <50%
-    Recommendation: Execute Spike (technical validation)
-```
-
-### First Principles Challenge
-
-YAGNI principle application:
-- High ICE Score does not guarantee necessity
-- Challenge "common sense" and "best practices"
-- Reconstruct from fundamental principles
-
-### Action Items Specification
-
-Required items:
-- Specific implementation steps
-- Measurement metrics (when applicable)
-- Rollback strategy (when applicable)
-- Post-implementation quality check with /iterative-review
+- **Numerical Justification**: Always include rationale (e.g., "Impact: 7 (100x/week, DX improvement)")
+- **Confidence**: Use criteria from frameworks.md, avoid over-estimation
+- **YAGNI Principle**: High score ≠ necessity, verify with First Principles
+- **Action Items**: Include implementation steps, metrics, rollback strategy, post-check with /iterative-review
 
 ## Error Handling
 
