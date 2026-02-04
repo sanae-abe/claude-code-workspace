@@ -95,11 +95,11 @@ IF 以下のいずれか該当:
     - レビュー待ち機能あり AND 新規開発開始
     - 現在ブランチ == "main" AND 未コミット変更あり
 THEN:
-    1. SlashCommand("/worktree create [branch-name]") 実行
+    1. Skill tool実行: `/worktree create [branch-name]`
        # branch-name = feature-*/bugfix-*/experiment-*/hotfix-*
     2. ユーザーに "cd ../worktree-[branch-name]" 提示
     3. ポート管理: 3001, 3002, 3003... を指示
-    4. 完了後は /worktree merge [branch-name] でクリーンアップ
+    4. 完了後は `/worktree merge [branch-name]` でクリーンアップ
     SKIP 以下の実装方法判定（worktree内で並行作業）
 ```
 
@@ -304,7 +304,7 @@ ELSE:
 
 **実装完了後の必須フロー**（順次実行）:
 ```
-1. SlashCommand("/validate --layers=syntax,security --auto-fix")
+1. Skill tool実行: `/validate --layers=syntax,security --auto-fix`
    # Layer 1-2: 構文・フォーマット自動修正（TypeScript, ESLint, Prettier）
    # Layer 5: セキュリティ検証（.env変更, 認証情報スキャン, OWASP）
    # IF 失敗 → エラー報告 → 修正要求 → SKIP 以下
@@ -362,7 +362,7 @@ IF タスク完了（以下のいずれか）:
     - TodoWrite最終todo completed
     - ユーザーが「完了」「done」「finish」明示
 THEN:
-    SlashCommand("/clean-jobs --auto")
+    Skill tool実行: `/clean-jobs --auto`
     # パターンベース自動分類:
     #   - 開発サーバー・watchモード → 自動停止
     #   - DB・Docker・ビルド → 継続実行
@@ -545,8 +545,9 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 
 ### 設計・開発ガイドライン
 
-**スラッシュコマンド開発**:
-- `~/.claude/rules/tech-stacks/slash-command-design.md` - LLM最適化されたコマンド設計指針
+**スキル開発ガイドライン**:
+- `~/.claude/rules/tech-stacks/slash-command-design.md` - スキル設計指針（LLM最適化）
+- `SKILL_MIGRATION.md` - スキル構造移行ガイド
 
 **スキル構造（Claude Code公式形式）**:
 - **ディレクトリ型**: `~/.claude/skills/skill-name/SKILL.md` 形式必須
@@ -597,9 +598,11 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 - AutoFlow統合: `~/.claude/docs/autoflow-integration-guide.md`
 - Figma連携: `~/.claude/docs/mcp-figma-rules.md`
 
-**コマンド実装**:
+**主要スキル実装**:
 - /implement: `skills-official/implement/SKILL.md`
 - /validate: `skills-official/validate/SKILL.md`
+- /commit: `skills-official/commit/SKILL.md`
+- /ship: `skills-official/ship/SKILL.md`
 
 ---
 
