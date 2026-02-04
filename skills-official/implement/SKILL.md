@@ -1002,3 +1002,26 @@ Optional: Create .claude/implement.json for project-specific settings:
   "require_all_criteria": true
 }
 ```
+
+---
+
+## Reference Files
+
+**tasks.yml schema**: `tasks.schema.json` (同じディレクトリ内)
+- JSON Schema for tasks.yml validation
+- Defines task structure, required fields, data types
+- Use for IDE validation and autocomplete
+
+**tasks.yml template**: `tasks.template.yml` (同じディレクトリ内)
+- Starter template with examples
+- Shows proper task structure with docs, acceptance_criteria, dependencies
+- Copy to project root as `tasks.yml` to begin
+
+**Usage**:
+```bash
+# Validate tasks.yml against schema
+npx ajv-cli validate -s skills-official/implement/tasks.schema.json -d tasks.yml
+
+# Create new tasks.yml from template
+cp skills-official/implement/tasks.template.yml tasks.yml
+```
