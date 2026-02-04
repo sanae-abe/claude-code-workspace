@@ -1,9 +1,14 @@
 ---
-allowed-tools: AskUserQuestion
-argument-hint: "<question-or-options>"
+name: decide
 description: Zero-dependency decision support using embedded frameworks (ICE/RICE/First Principles)
-model: sonnet
 ---
+
+<!-- Original metadata:
+  allowed-tools: AskUserQuestion
+  argument-hint: "<question-or-options>"
+  model: sonnet
+-->
+
 
 # /decide - Decision Support Command
 
@@ -137,7 +142,6 @@ The following frameworks are embedded in this skill for zero-dependency operatio
 | High uncertainty | ICE Score (emphasize Confidence) | Easy risk assessment |
 | Understanding problem essence | First Principles | Question assumptions, think from fundamentals |
 
----
 
 ### 1. Eisenhower Matrix
 
@@ -157,7 +161,6 @@ Not Important 3. Delegate      4. Don't do
 - **Important**: Directly impacts goal achievement, resolves technical debt, security response
 - **Urgent**: Deadline approaching, blocking other work, high user impact
 
----
 
 ### 2. ICE Score (Impact, Confidence, Ease)
 
@@ -206,7 +209,6 @@ Automation-Feature-B:
 - **4-6**: 1 day - 1 week (medium feature implementation)
 - **1-3**: 1+ weeks (large-scale refactoring)
 
----
 
 ### 3. RICE Score (Reach, Impact, Confidence, Effort)
 
@@ -235,7 +237,6 @@ RICE Score = (Reach × Impact × Confidence) / Effort
 - Top 50-80%: Medium priority
 - Bottom 20%: Deletion candidate
 
----
 
 ### 4. Confidence Evaluation Criteria
 
@@ -262,7 +263,6 @@ New-Technology-Adoption-D:
     → Raise to 70%+ via Spike (1-2 days) before deciding
 ```
 
----
 
 ### 5. First Principles Thinking
 
@@ -294,7 +294,6 @@ Reconstruction from fundamentals:
 - When existing solutions are too complex
 - When innovation is needed
 
----
 
 ### Practical Workflows
 
@@ -324,7 +323,6 @@ Reconstruction from fundamentals:
 3. Implement
 ```
 
----
 
 ### Anti-Patterns
 
@@ -344,7 +342,6 @@ Reconstruction from fundamentals:
 - Problem: Assumed "all users will use it" but actually only a subset
 - Solution: Verify with real data and analytics, estimate conservatively
 
----
 
 ## Error Handling
 

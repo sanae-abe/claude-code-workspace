@@ -1,9 +1,14 @@
 ---
-allowed-tools: Bash, Read, AskUserQuestion, TodoWrite
-argument-hint: "[message] [--no-verify] [--amend]"
+name: commit
 description: Create Conventional Commits with emoji formatting
-model: sonnet
 ---
+
+<!-- Original metadata:
+  allowed-tools: Bash, Read, AskUserQuestion, TodoWrite
+  argument-hint: "[message] [--no-verify] [--amend]"
+  model: sonnet
+-->
+
 
 # Git Commit Command
 
@@ -390,4 +395,3 @@ Suggestions:
 4. Review errors in detail: cat type-check-output.log
 ```
 
----

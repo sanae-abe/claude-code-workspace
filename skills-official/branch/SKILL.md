@@ -1,9 +1,14 @@
 ---
-allowed-tools: Bash, Read, AskUserQuestion
-argument-hint: "[branch-type] [description]"
+name: branch
 description: Create Git branch following Conventional Branch naming rules
-model: sonnet
 ---
+
+<!-- Original metadata:
+  allowed-tools: Bash, Read, AskUserQuestion
+  argument-hint: "[branch-type] [description]"
+  model: sonnet
+-->
+
 
 # Branch Creation Command
 

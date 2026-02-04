@@ -1,9 +1,14 @@
 ---
-allowed-tools: Bash, Read, Grep, AskUserQuestion, Task
-argument-hint: "[optimization-target]"
+name: optimize
 description: "Performance optimization through measurement, analysis, and validation"
-model: sonnet
 ---
+
+<!-- Original metadata:
+  allowed-tools: Bash, Read, Grep, AskUserQuestion, Task
+  argument-hint: "[optimization-target]"
+  model: sonnet
+-->
+
 
 # Performance Optimization Command
 
