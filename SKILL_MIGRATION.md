@@ -91,6 +91,16 @@ description: Create Conventional Commits with emoji formatting
   ├── todo/
   │   ├── SKILL.md
   │   └── todo_validation.py         # 関連ファイル
+  ├── validate/
+  │   ├── SKILL.md
+  │   └── validation/                # validation/ディレクトリ全体
+  │       ├── pipeline.sh
+  │       ├── config.sh
+  │       ├── gates/
+  │       ├── fixers/
+  │       ├── patterns/
+  │       ├── utils/
+  │       └── tests/
   └── ...
 
 claude-code-workspace/
@@ -98,15 +108,39 @@ claude-code-workspace/
   │   ├── commit -> ~/.claude/skills/commit
   │   ├── decide -> ~/.claude/skills/decide
   │   ├── implement -> ~/.claude/skills/implement
+  │   ├── validate -> ~/.claude/skills/validate
   │   ├── todo -> ~/.claude/skills/todo
   │   └── ...
+  ├── validation -> ~/.claude/skills/validate/validation  # validation/ディレクトリのシンボリックリンク
   └── .gitattributes                # 改行コード設定
+
+~/.claude/
+  └── validation -> ~/.claude/skills/validate/validation  # validation/ディレクトリのシンボリックリンク
 ```
 
 **構造の意図**:
 - `~/.claude/skills/`: 標準的なスキル配置場所（実体ファイル）
 - `skills-official/`: プロジェクト固有の参照（シンボリックリンク）
 - 関連ファイルも `~/.claude/skills/` 配下に配置（自己完結型）
+
+### 6. validateスキルの特殊対応（2025-02-04追加）
+
+**背景**: validation/ディレクトリ（26ファイル、7サブディレクトリ）はvalidateスキルの品質ゲートパイプラインを実装。
+
+**変更内容**:
+- validation/ディレクトリ全体を `~/.claude/skills/validate/validation/` に移動
+- プロジェクトルートとClaude設定ディレクトリにシンボリックリンク作成:
+  - `~/projects/claude-code-workspace/validation → ~/.claude/skills/validate/validation`
+  - `~/.claude/validation → ~/.claude/skills/validate/validation`
+
+**理由**:
+- 他のスキル（decide, implement, todo）と同様の自己完結型構造
+- validation/ディレクトリもvalidateスキルに内包
+- 既存の参照パス（`~/.claude/validation`）も維持（シンボリックリンク経由）
+
+**影響**:
+- validateスキルが完全に自己完結（validation/ディレクトリを含む）
+- 他のスキル（review-pr等）からの `~/.claude/validation` 参照は引き続き機能
 
 ## 変換されたスキル（24個）
 
