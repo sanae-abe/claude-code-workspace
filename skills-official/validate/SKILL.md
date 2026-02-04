@@ -579,3 +579,61 @@ chmod +x ~/projects/claude-code-workspace/validation/utils/report-generator.py
 #
 # 💡 Fast validation completed in 12s (60% faster than --layers=all)
 ```
+
+---
+
+## Reference: Validation Pipeline
+
+**Location**: `validation/` directory (workspace root, symlinked from `~/.claude/validation`)
+
+### Directory Structure
+
+```
+validation/
+├── pipeline.sh              # Main validation pipeline
+├── config.sh                # Configuration
+├── gates/                   # Quality gate implementations
+│   ├── layer1_syntax.sh     # TypeScript, ESLint, YAML validation
+│   ├── layer2_format.sh     # Prettier, code formatting
+│   └── layer5_security.sh   # Security checks, OWASP compliance
+├── fixers/                  # Auto-fix utilities
+│   ├── enum_normalizer.py
+│   ├── markdown_stripper.py
+│   └── yaml_fixer.py
+├── patterns/                # Security pattern definitions
+│   └── security-patterns.json
+├── utils/                   # Shared utilities
+│   ├── logging.sh
+│   └── report-generator.py
+└── tests/                   # Test suite
+    ├── fixtures/            # Test fixtures
+    ├── run_all_tests.sh     # Run all tests
+    └── test_*.sh            # Individual tests
+```
+
+### Layer Descriptions
+
+**Layer 1-2 (syntax)**: TypeScript type check, ESLint, Prettier, YAML/JSON validation
+**Layer 3-4 (integration)**: Test coverage, API type consistency (future)
+**Layer 5 (security)**: Secret detection, OWASP Top 10 checks, dependency vulnerabilities
+
+### Usage
+
+This skill (`/validate`) is a wrapper that:
+1. Validates user arguments (layers, auto-fix, report format)
+2. Executes `validation/pipeline.sh` with sanitized arguments
+3. Parses and displays the validation report
+
+**Direct pipeline execution** (for debugging):
+```bash
+cd validation
+./pipeline.sh --layers=all --auto-fix=true --stop-on-failure=true
+```
+
+**Other skills referencing validation/**:
+- `/review-pr`: References security patterns, OWASP checklist
+- `/implement`: References input patterns, security patterns
+
+### Security Note
+
+The validation pipeline is executed via Bash tool with proper argument sanitization (see Security Implementation section in this skill). All user inputs are validated before pipeline execution to prevent command injection.
