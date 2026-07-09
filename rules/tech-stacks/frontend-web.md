@@ -33,7 +33,7 @@ npm run test:coverage       # Test coverage
 
 ## Build Tools
 
-### Package Managers (2024-2025)
+### Package Managers (2025-2026)
 
 - **pnpm**: Fast, efficient (Monorepo recommended)
 - **Bun**: Fastest (New projects)
@@ -46,6 +46,8 @@ npm run test:coverage       # Test coverage
 - **strict mode**: `"strict": true` in tsconfig.json
 - **Zero type errors**: Validate with `npm run type-check`
 - **Type inference**: Minimize `any` usage
+- **`satisfies` operator** (TS 4.9+): Type-validates without widening — `{ port: 3000 } satisfies Record<string, number>`
+- **Utility types**: `Awaited<T>`, `ReturnType<T>`, `Parameters<T>` for deriving types without duplication
 
 ### ESLint
 - **Zero errors required**: Framework-specific rules
@@ -58,10 +60,10 @@ npm run test:coverage       # Test coverage
 - **Unified format**: Consistent code style
 - **Auto-format**: On save or pre-commit
 
-### Bundler Selection (2024-2025)
+### Bundler Selection (2025-2026)
 
 - **Vite**: Fastest DX (New projects, recommended)
-- **Turbopack**: 700x Webpack (Next.js App Router)
+- **Turbopack**: Next.js App Router recommended (significantly faster than Webpack; benchmark results vary by environment)
 - **Rspack**: 10x Webpack (Webpack migration)
 - **esbuild**: Ultra-fast (Simple projects)
 - **Webpack**: Customizable (Legacy large-scale only)
@@ -141,25 +143,28 @@ Content-Security-Policy: default-src 'self'; script-src 'self' 'nonce-abc123'; o
 
 **Nonce generation** (Server-side required):
 ```tsx
-// Next.js middleware example
+// Next.js middleware example (official pattern)
+// Default middleware runs on Edge runtime: use Web Crypto, NOT node:crypto
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 
 export function middleware(request) {
-  const nonce = crypto.randomBytes(16).toString('base64');
-  const response = NextResponse.next();
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
+  const cspHeader = `script-src 'self' 'nonce-${nonce}'; object-src 'none'`;
 
-  response.headers.set('Content-Security-Policy',
-    `script-src 'self' 'nonce-${nonce}'; object-src 'none'`);
+  // Pass nonce via REQUEST headers — Server Components read it with headers().get('x-nonce')
+  // (response headers are NOT readable from the page)
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', cspHeader);
 
-  // Pass nonce to page
-  response.headers.set('X-Nonce', nonce);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set('Content-Security-Policy', cspHeader);
   return response;
 }
 ```
 
 **Forbidden directives** (common security mistakes):
-- NEVER use `'unsafe-inline'` - Allows inline scripts (enables XSS)
+- NEVER use `'unsafe-inline'` without nonce/hash — nonce (shown above) is the safe alternative for inline scripts
 - NEVER use `'unsafe-eval'` - Allows eval() (enables code injection)
 - NEVER use `*` - Allows any source (defeats purpose of CSP)
 
@@ -221,9 +226,9 @@ Note: INP replaced FID in March 2024
 
 **Bundle monitoring**:
 ```bash
-# CI/CD check (fail if > 10% increase)
+# CI/CD check (fail if budget exceeded)
 npm run build
-npm run bundlesize  # Uses bundlesize.config.json
+npx size-limit  # config in package.json (NOTE: bundlesize is unmaintained — use size-limit)
 
 # Manual analysis
 npx vite-bundle-visualizer  # or webpack-bundle-analyzer
@@ -270,20 +275,14 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - Poor Critical Path → FCP > 2.0s, LCP > 4.0s
 
 ### Memory Management
-- **Prevent leaks**: useEffect cleanup required
-  ```tsx
-  useEffect(() => {
-    const sub = subscribe();
-    return () => sub.unsubscribe();
-  }, []);
-  ```
-- **Memoization**: useMemo, useCallback, React.memo
+- **Prevent leaks**: useEffect cleanup required — patterns (listeners, subscriptions, timers, async cancellation): see [Memory Optimization](#memory-optimization)
+- **Memoization**: useMemo, useCallback, React.memo — see [React Runtime Performance](#react-runtime-performance)
 
 ### Image Optimization
 
 **Modern formats**:
 - **WebP**: 25-35% smaller than JPEG/PNG (98% browser support)
-- **AVIF**: 50% smaller than JPEG (limited support: 90% desktop, 85% mobile)
+- **AVIF**: 50% smaller than JPEG (94%+ browser support in 2026, recommended for production)
 - **Fallback**: Use `<picture>` element for progressive enhancement
 
 ```html
@@ -365,6 +364,11 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 
 **Rule**: Never use useState for server data. Always use TanStack Query or SWR.
 
+**React 19 Built-ins** (React 19+):
+- `useOptimistic`: Optimistic UI updates without external library
+- `use()`: Read promises/context in render — pairs with Suspense for data fetching
+- Use for simple cases; TanStack Query remains preferred for complex caching
+
 ## Styling
 
 ### CSS Frameworks
@@ -395,7 +399,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - Vueコンポーネント: `ProductCard`（PascalCase）
 - BEM Modifier（`--`）: 禁止（is-/has- Prefixに移行）
 
-**詳細**: [~/.claude/stacks/css-coding-standards.md](./css-coding-standards.md)
+**詳細**: [~/.claude/rules/tech-stacks/css-coding-standards.md](./css-coding-standards.md)
 
 ## Testing
 
@@ -549,6 +553,26 @@ function LoginForm() {
 }
 ```
 
+**React 19 Form Actions** (React 19+, replaces `useState` + handler pattern):
+```tsx
+import { useActionState } from 'react';
+
+async function loginAction(_prevState: unknown, formData: FormData) {
+  const email = formData.get('email') as string;
+  return { success: !!email };
+}
+
+function LoginForm() {
+  const [state, formAction, isPending] = useActionState(loginAction, null);
+  return (
+    <form action={formAction}>
+      <input name="email" type="email" />
+      <button disabled={isPending}>{isPending ? 'Submitting...' : 'Login'}</button>
+    </form>
+  );
+}
+```
+
 ## Internationalization (i18n)
 
 ### i18n Libraries
@@ -610,13 +634,9 @@ _.debounce(fn, 100);
 // After: 200KB bundle (-75%)
 import debounce from 'lodash-es/debounce';
 debounce(fn, 100);
-
-// Code Splitting
-const Heavy = React.lazy(() => import('./Heavy'));
-<Suspense fallback={<Loading />}>
-  <Heavy />
-</Suspense>
 ```
+
+Code splitting patterns: see [Performance Optimization Patterns](#performance-optimization-patterns)
 
 ### Core Web Vitals Improvement
 
@@ -674,9 +694,12 @@ const [state, dispatch] = useReducer(reducer, initialState);
 // Better than multiple useState for complex state
 ```
 
+**React Compiler (2025+)**: When enabled (`babel-plugin-react-compiler`), automatically handles memoization — `memo`/`useMemo`/`useCallback` become optional. Verify with project config before adding manual memoization.
+
 **Virtualization for large lists**:
 
 ```tsx
+// react-window v1 API (v2, released 2025-08, replaces this with <List rowComponent={...} />)
 import { FixedSizeList } from 'react-window';
 
 // Render only visible items (10,000 items → 10 rendered)
@@ -743,30 +766,31 @@ if (user.isPremium) {
 **Asset optimization**:
 
 ```javascript
-// Image compression (vite.config.ts / webpack.config.js)
-import imagemin from 'vite-plugin-imagemin';
+// Image compression (vite.config.ts)
+// NOTE: vite-plugin-imagemin is unmaintained — use vite-plugin-image-optimizer (sharp/svgo based)
+import { ViteImageOptimizer } from 'vite-plugin-image-optimizer';
 
 export default {
   plugins: [
-    imagemin({
-      gifsicle: { optimizationLevel: 3 },
-      mozjpeg: { quality: 80 },
-      pngquant: { quality: [0.65, 0.8] },
-      svgo: { plugins: [{ removeViewBox: false }] },
+    ViteImageOptimizer({
+      jpeg: { quality: 80 },
+      png: { quality: 80 },
+      svg: { plugins: [{ name: 'preset-default' }] },
     }),
   ],
 };
+```
 
-// Font subsetting (only include used characters)
+```bash
+# Font subsetting (only include used characters)
+# Requires: pip install fonttools brotli
 pyftsubset font.ttf \
   --output-file=font-subset.woff2 \
   --flavor=woff2 \
   --unicodes=U+0020-007E  # Basic Latin
-
-// CSS purging (remove unused styles)
-// Tailwind CSS: automatic in production build
-// PurgeCSS: configure in postcss.config.js
 ```
+
+**CSS purging** (remove unused styles): Tailwind CSS — automatic in production build / PurgeCSS — configure in postcss.config.js
 
 ### Memory Optimization
 
@@ -829,6 +853,26 @@ class ObjectPool<T> {
 }
 ```
 
+### Web Workers for CPU-Intensive Tasks
+
+**Offload heavy computation** to avoid blocking the main thread:
+
+```typescript
+// worker.ts
+self.addEventListener('message', (event) => {
+  const result = heavyComputation(event.data);
+  self.postMessage(result);
+});
+
+// main.tsx — Vite/webpack supports this import pattern
+const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+worker.postMessage(largeDataset);
+worker.onmessage = (event) => setResult(event.data);
+worker.terminate(); // cleanup when done
+```
+
+**Use when**: CSV/JSON parsing, image processing, crypto operations, sorting large arrays.
+
 ### Network Optimization
 
 **Request deduplication and caching**:
@@ -841,7 +885,7 @@ const { data } = useQuery({
   queryKey: ['user', id],
   queryFn: () => fetchUser(id),
   staleTime: 5 * 60 * 1000,  // 5 minutes
-  cacheTime: 10 * 60 * 1000, // 10 minutes
+  gcTime: 10 * 60 * 1000,    // 10 minutes (v5: renamed from cacheTime)
 });
 
 // SWR: similar deduplication
@@ -892,13 +936,15 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 # Lighthouse CI (performance regression detection)
 npm install -g @lhci/cli
 lhci autorun --config=lighthouserc.json
+```
 
-# Core Web Vitals (production)
-# web-vitals library
-import { getCLS, getFID, getFCP, getLCP, getTTFB } from 'web-vitals';
+**Core Web Vitals** (production, web-vitals v4+ — `get*` functions were removed, use `on*`):
+```typescript
+import { onCLS, onINP, onLCP } from 'web-vitals';
 
-getCLS(console.log);
-getLCP(console.log);
+onCLS(console.log);
+onINP(console.log);  // INP replaced FID in March 2024
+onLCP(console.log);
 // Send to analytics endpoint
 ```
 
@@ -917,8 +963,22 @@ getLCP(console.log);
     "timings": [
       { "metric": "first-contentful-paint", "budget": 1500 },
       { "metric": "largest-contentful-paint", "budget": 2500 },
-      { "metric": "interactive", "budget": 3500 }
+      { "metric": "total-blocking-time", "budget": 300 }
     ]
   }
 ]
 ```
+
+Note: `interactive` (TTI) was removed in Lighthouse 10 — use `total-blocking-time` instead.
+
+---
+
+## Document Metadata
+
+- **Primary Use Case**: Web frontend implementation & review (weekly)
+- **Secondary Use Case**: Performance / security audit (monthly)
+- **Auto-update Trigger**: React/Next.js major release, Core Web Vitals metric change, major library API change (web-vitals, TanStack Query, react-window)
+- **Obsolescence Risk**: High (frontend ecosystem evolves rapidly)
+- **Related Docs**: `~/.claude/rules/tech-stacks/css-coding-standards.md`, `~/.claude/rules/tech-stacks/vue-nuxt.md`
+- **Target**: Claude Code AI assistant
+- **Last Updated**: 2026-07-07

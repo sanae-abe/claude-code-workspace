@@ -12,7 +12,7 @@
 - **ルーティング**: File-based routing
 - **テスト**: Vitest + @vue/test-utils
 
-## Nuxt 4の主な変更点（2025年7月RC、正式版まもなく）
+## Nuxt 4の主な変更点（2025年8月正式リリース）
 
 - **新ディレクトリ構造**: `app/` ディレクトリ導入（後方互換性あり）
 - **データフェッチング改善**: `useAsyncData`, `useFetch` のキャッシング・クリーンアップ強化
@@ -111,8 +111,23 @@ const emit = defineEmits<{
 - v-modelバインディング: `update:modelValue` 形式
 
 **型構文の注意点**:
-- ✅ 関数シグネチャ形式: `(e: 'event-name', payload: Type): void`
-- ❌ タプル形式は使用不可: `'event-name': [payload: Type]`
+
+2つの形式が使用可能（Vue 3.3+）:
+
+```typescript
+// 関数シグネチャ形式（Interface定義時に使用）
+interface Emits {
+  (e: 'page-change', page: number): void
+}
+
+// タプル形式（直接型定義時に使用、Vue 3.3+）
+const emit = defineEmits<{
+  'page-change': [page: number]
+  'close': []
+}>()
+```
+
+統一性のためプロジェクト内でどちらかに揃えること。
 
 ### 1.4 リアクティブ変数
 
@@ -297,19 +312,24 @@ export default defineEventHandler(async (event) => {
 ### 3.3 Auto-imports活用
 
 **利用可能な関数（import不要）**:
-- Vue: `ref`, `computed`, `watch`, `onMounted`, etc.
-- Nuxt: `useRoute`, `useRouter`, `useState`, `useFetch`, etc.
-- Composables: `useAuth`, `useEventFilters`, etc.（自動検出）
+- Vue: `ref`, `computed`, `watch`, `watchEffect`, `onMounted`, `onUnmounted`, etc.
+- Nuxt (app): `useRoute`, `useRouter`, `useState`, `useFetch`, `useAsyncData`, `useLazyFetch`
+- Nuxt (navigation): `navigateTo()`, `useNuxtApp()`, `definePageMeta()`
+- Nuxt (error): `showError()`, `clearError()`, `createError()`
+- Nuxt (server): `useRequestEvent()`, `useRequestHeaders()`（server composables内）
+- Composables: `useAuth`, `useEventFilters`, etc.（`composables/` ディレクトリを自動検出）
 
 **明示的importが必要なケース**:
 - 外部ライブラリ（Firebase, Stripe等）
 - 型定義（`import type { ... }`）
+- `server/` 内からVue/Nuxtの関数を呼ぶ場合（サーバーコンテキストは別）
 
 ### 3.4 データフェッチング（Nuxt 4改善）
 
 **基本パターン（Nuxt 3/4共通）**:
 ```typescript
 // useFetch（推奨）
+// ※ await はSSRで初期データ取得をブロックする（Promise返却ではなくサスペンド）
 const { data, pending, error, refresh } = await useFetch('/api/events')
 
 // useAsyncData（カスタムロジック用）
@@ -349,8 +369,9 @@ const { data } = await useAsyncData(() => $fetch('/api/events'))
 ```typescript
 export default defineNuxtConfig({
   typescript: {
-    strict: true, // ✅ 必須
-    typeCheck: true, // ✅ ビルド時型チェック
+    strict: true,      // ✅ 必須
+    typeCheck: true,   // ⚠️ ビルド速度が大幅に低下するためCIのみ推奨
+    // 開発中はnpx nuxt typecheckを手動実行するか、IDE（Volar）に委ねる
   },
 })
 ```
@@ -582,9 +603,12 @@ const apiKey = config.public.contentfulAccessToken
 ## 9. 参照ドキュメント
 
 - Vue 3: https://vuejs.org/
-- Nuxt 3: https://nuxt.com/
-- Nuxt 4 公式発表: https://nuxt.com/blog/v4
+- Nuxt 3/4: https://nuxt.com/
 - Nuxt 4 移行ガイド: https://nuxt.com/docs/getting-started/upgrade
 - TypeScript: https://www.typescriptlang.org/
 - Vitest: https://vitest.dev/
-- CSS規約: `~/.claude/stacks/css-coding-standards.md`
+- CSS規約: `~/.claude/rules/tech-stacks/css-coding-standards.md`
+
+---
+
+**最終更新**: 2026-05-29

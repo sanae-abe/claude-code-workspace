@@ -1,6 +1,6 @@
 ---
-allowed-tools: Bash, Read, Grep, Edit, Write, TodoWrite, AskUserQuestion, Task
-argument-hint: "[file-path|component-name]"
+allowed-tools: Bash(npm run *) Bash(pnpm run *) Bash(bun run *) Bash(yarn *) Bash(cargo *) Bash(go *) Bash(python *) Bash(git *) Bash(npx *) Read Grep Edit Write AskUserQuestion Task
+argument-hint: "<file-path|component-name>"
 description: Safe incremental refactoring workflow with quality validation
 model: sonnet
 ---
@@ -64,12 +64,13 @@ If validation fails: exit with error code 1 (user error) or 2 (security error)
 
 ## Execution Flow
 
-1. Parse refactoring target from $ARGUMENTS
-2. Validate and sanitize inputs
-3. Analyze target and determine refactoring scope
-4. Create TodoWrite for incremental refactoring phases
-5. Execute refactoring with validation at each step
-6. Verify quality metrics and functionality preservation
+1. **Git state check**: run `git status --porcelain` — if uncommitted changes exist, warn the user and ask whether to stash/commit first or proceed at their own risk
+2. Parse refactoring target from $ARGUMENTS
+3. Validate and sanitize inputs
+4. Analyze target and determine refactoring scope
+5. Create TodoWrite for incremental refactoring phases
+6. Execute refactoring with per-phase validation (see Validation at Each Step)
+7. Run full quality verification after all phases complete (see Quality Verification)
 
 ## Refactoring Analysis
 
@@ -135,54 +136,81 @@ For technology-specific patterns, see External References section
 
 ### Validation at Each Step
 
-Execute automated checks after each refactoring phase:
-- Type check: `npm run typecheck` - zero errors required
-- Linter: `npm run lint` - prevent new error increases
-- Tests: `npm run test:run` - verify existing tests pass
-- Build: `npm run build` - confirm build success
+Lightweight per-phase check — run after each individual refactoring phase to catch regressions early before proceeding to the next phase.
 
-See Quality Verification section for parallel execution pattern
+First, detect the project type and resolve the correct commands:
+
+```
+IF Cargo.toml exists    → type_check="cargo check", lint="cargo clippy", test="cargo test", build="cargo build"
+ELIF go.mod exists      → type_check="go vet ./...", lint="golangci-lint run", test="go test ./...", build="go build ./..."
+ELIF pyproject.toml OR setup.py exists → type_check="mypy .", lint="ruff check .", test="pytest", build=(skip)
+ELIF package.json exists:
+  IF pnpm-lock.yaml    → prefix="pnpm run"
+  ELIF bun.lockb       → prefix="bun run"
+  ELIF yarn.lock       → prefix="yarn"
+  ELSE                 → prefix="npm run"
+  type_check="{prefix} typecheck", lint="{prefix} lint", test="{prefix} test:run", build="{prefix} build"
+```
+
+Execute in order (stop on first failure):
+1. Type check — zero errors required
+2. Linter — no new errors introduced
+3. Tests — all existing tests pass
+
+See Quality Verification for the comprehensive final check after all phases.
 
 ## Quality Verification
 
 ### Automated Quality Checks
 
-Parallel execution for efficiency:
+Comprehensive final check run after all refactoring phases complete. Use the same project-type detection as "Validation at Each Step" to resolve commands.
+
+Parallel execution for efficiency (exit code based — no false positives from output parsing):
 
 ```bash
-# Parallel quality checks (30-50% faster)
-{
-  TS_ERRORS=$(npm run typecheck 2>&1 | grep -c "error" || echo "0") &
-  LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0") &
-  BUILD_STATUS=$(npm run build 2>&1 | grep -c "failed\|error" || echo "0") &
-  wait
-}
+# Resolve commands via project detection (same logic as Validation at Each Step)
+# TYPE_CHECK_CMD / LINT_CMD / TEST_CMD / BUILD_CMD set by detection above
+
+# Run type check and build in parallel (critical checks)
+{ $TYPE_CHECK_CMD; echo $? > /tmp/tc_exit; } &
+{ $BUILD_CMD; echo $? > /tmp/build_exit; } &
+wait
+
+TC_EXIT=$(cat /tmp/tc_exit)
+BUILD_EXIT=$(cat /tmp/build_exit)
 
 # Fail fast on critical issues
-if [[ $TS_ERRORS -gt 0 || $BUILD_STATUS -gt 0 ]]; then
+if [[ $TC_EXIT -ne 0 || $BUILD_EXIT -ne 0 ]]; then
   echo "ERROR: Critical issues detected, refactoring verification failed"
-  echo "  TypeScript errors: $TS_ERRORS"
-  echo "  Build errors: $BUILD_STATUS"
+  [[ $TC_EXIT -ne 0 ]]    && echo "  Type check failed (exit $TC_EXIT)"
+  [[ $BUILD_EXIT -ne 0 ]] && echo "  Build failed (exit $BUILD_EXIT)"
   exit 3
 fi
 
-# Tests (if available)
-npm run test:run --silent 2>/dev/null && echo "Tests passing" || echo "Test issues detected"
+# Lint (non-blocking: report but continue)
+$LINT_CMD && echo "Lint: OK" || echo "WARN: Lint issues detected"
 
-# Security audit
-npm audit --production 2>/dev/null && echo "No vulnerabilities" || echo "Security issues detected"
+# Tests (non-blocking: report but continue)
+$TEST_CMD && echo "Tests: passing" || echo "WARN: Test issues detected"
 
-# Dependency check (unused imports)
-npx depcheck 2>/dev/null | head -20 || echo "Depcheck unavailable"
+# Security audit (Node.js only)
+if [[ -f package.json ]]; then
+  npm audit --production 2>/dev/null && echo "Security: OK" || echo "WARN: Security issues detected"
+fi
+
+# Dependency check (Node.js only, if available)
+if [[ -f package.json ]]; then
+  npx depcheck 2>/dev/null | head -20 || echo "Depcheck unavailable"
+fi
 ```
 
 ### Final Checklist
 
-- TypeScript: zero errors (required)
-- ESLint: no new errors (required)
+- Type check: zero errors (required)
+- Linter: no new errors introduced (required)
 - Tests: all existing tests pass (required)
-- Build: success with no degradation (required)
-- Security: no new vulnerabilities (required)
+- Build: success with no degradation (required — skip for interpreted languages without a build step)
+- Security: no new vulnerabilities (required — Node.js: `npm audit`; Python: `pip-audit`; Rust: `cargo audit`)
 - Dependencies: no unused imports (recommended)
 
 For performance optimization, use `/optimize` command instead of manual checks
@@ -197,9 +225,10 @@ For performance optimization, use `/optimize` command instead of manual checks
 ## External References
 
 For technology-specific refactoring patterns, refer to:
-- **Frontend (React/TypeScript)**: `~/.claude/stacks/frontend-web.md`
-- **Backend**: `~/.claude/stacks/backend-api.md`
-- **Mobile**: `~/.claude/stacks/mobile-app.md`
+- **Frontend (React/TypeScript)**: `~/.claude/rules/tech-stacks/frontend-web.md`
+- **Backend**: `~/.claude/rules/tech-stacks/backend-api.md`
+- **Mobile**: `~/.claude/rules/tech-stacks/mobile-app.md`
+- **Rust**: `~/.claude/rules/tech-stacks/rust-cli.md`
 
 For complex refactoring requiring deep analysis:
 - **Use refactoring-specialist agent**: Handles complex refactoring with systematic approach

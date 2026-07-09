@@ -46,11 +46,15 @@ Claude Codeの効率的な使い方、スラッシュコマンド、設定シス
 ```
 ~/.claude/
 ├── CLAUDE.md                    # LLM向け基本設定（技術中立）
-├── README.md                    # このファイル（ユーザー向けガイド）
+├── USER_GUIDE.md                # このファイル（ユーザー向けガイド）
 ├── settings.json                # Claude Code システム設定
-├── skills/                      # Skills定義
-│   ├── debug.md
-│   ├── implement.md
+├── skills/                      # Skills定義（シンボリックリンク）
+│   ├── debug -> ../skills-official/debug/
+│   ├── implement -> ../skills-official/implement/
+│   └── ...
+├── skills-official/             # Skills実ファイル
+│   ├── debug/SKILL.md
+│   ├── implement/SKILL.md
 │   └── ...
 ├── rules/                       # 開発ルール・技術スタック設定
 │   ├── frontend-web.md
@@ -62,7 +66,7 @@ Claude Codeの効率的な使い方、スラッシュコマンド、設定シス
 │   ├── case-studies.md
 │   ├── roadmap.md
 │   └── command-dashboard.md
-├── learning-sessions/           # 学習記録（cldevで管理）
+├── learnings/                   # 学習記録（cldevで管理）
 │   └── *.md
 └── scripts/                     # メンテナンススクリプト
     └── validate-links.sh
@@ -80,7 +84,7 @@ Claude Codeは以下の3層で設定を管理します：
    - コード品質基準
    - タスク管理戦略
 
-2. **技術層**: `~/.claude/stacks/{tech-stack}.md`
+2. **技術層**: `~/.claude/rules/tech-stacks/{tech-stack}.md`
    - Web Frontend (`frontend-web.md`)
    - API Backend (`backend-api.md`)
    - Mobile App (`mobile-app.md`)
@@ -99,7 +103,7 @@ Claude Codeは以下の3層で設定を管理します：
 code ~/.claude/CLAUDE.md
 
 # 技術スタック別設定を編集
-code ~/.claude/stacks/frontend-web.md
+code ~/.claude/rules/tech-stacks/frontend-web.md
 
 # プロジェクト設定を編集（プロジェクトルートで）
 code .claude/CLAUDE.md
@@ -120,6 +124,7 @@ code .claude/CLAUDE.md
 | コマンド | 用途 |
 |---------|------|
 | `/feature [機能名・要件]` | 新機能実装 - 要件確認から設計・実装・テストまでの段階的開発フロー |
+| `/implement [task-id\|"自然言語要件"]` | tasks.ymlのタスクを実装、または自然言語要件から新規タスクを作成して実装 |
 | `/refactor [対象・機能名]` | 安全なリファクタリング（段階的実行）でコード品質・保守性・パフォーマンスを向上 |
 | `/optimize [最適化対象・パフォーマンス領域]` | パフォーマンス最適化 - 測定・分析・最適化・検証の科学的アプローチによる性能向上 |
 
@@ -178,7 +183,9 @@ code .claude/CLAUDE.md
 
 | コマンド | 用途 |
 |---------|------|
-| `/clean-jobs` | Safe cleanup of background jobs |
+| `/validate [--layers=syntax,security] [--auto-fix]` | 多層品質ゲート検証 - 構文・フォーマット自動修正とセキュリティ検証 |
+| `/worktree [create\|merge] [branch-name]` | Git worktree管理 - 並行開発ワークフローのためのブランチ分離・統合 |
+| `/clean-jobs` | バックグラウンドジョブの安全なクリーンアップ |
 
 ## バックアップとメンテナンス
 

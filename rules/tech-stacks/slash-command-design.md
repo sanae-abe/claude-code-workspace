@@ -1,6 +1,8 @@
-# Slash Command Design Guidelines
+# Skill Design Guidelines
 
-Guidelines for creating Claude Code slash commands optimized for LLM parsing and execution.
+Guidelines for creating Claude Code skills (slash commands) optimized for LLM parsing and execution.
+
+> **Note**: Custom commands (`.claude/commands/`) and skills (`.claude/skills/<name>/SKILL.md`) are equivalent. Skills are preferred: they support supporting files, richer frontmatter, and Claude auto-invocation.
 
 ## Core Principles
 
@@ -13,45 +15,135 @@ Guidelines for creating Claude Code slash commands optimized for LLM parsing and
 
 ## YAML Frontmatter Format
 
-Required frontmatter structure:
+All fields are optional. Only `description` is strongly recommended.
 
 ```yaml
 ---
-allowed-tools: Bash, Read, Write, Edit
+name: my-skill
+description: What this skill does and when to use it. Claude uses this for auto-invocation.
+when_to_use: Additional trigger phrases or example requests that should activate this skill.
 argument-hint: "<required> [--optional-flag]"
-description: Single-line description shown in command list
+arguments: [target, format]
+disable-model-invocation: true
+user-invocable: false
+allowed-tools: Bash(git add *) Bash(git commit *) Read
+disallowed-tools: AskUserQuestion
 model: sonnet
+effort: high
+context: fork
+agent: Explore
+paths: ["src/**/*.ts", "tests/**"]
 ---
 ```
 
 ### Field Specifications
 
-**allowed-tools** (required)
-- Grant minimum necessary tools only
+**description** (strongly recommended)
+- What the skill does and when Claude should invoke it automatically
+- Put the key use case first (truncated at 1,536 characters in Claude's context)
+- Claude matches this against natural language requests to auto-invoke
+
+**when_to_use** (optional)
+- Additional trigger phrases or example requests
+- Appended to `description` for Claude's matching, counts toward 1,536-char cap
+
+**disable-model-invocation** (optional, default: false)
+- Set to `true` for any skill with side effects: deploy, commit, send messages
+- Prevents Claude from deciding autonomously to run the skill
+- Skill description is excluded from Claude's context entirely
+
+**user-invocable** (optional, default: true)
+- Set to `false` for background knowledge Claude should apply but users shouldn't invoke directly
+- Hides the skill from the `/` menu
+
+**allowed-tools** (optional)
+- Grant minimum necessary tools without per-use approval
+- Use tool constraints for precision: `Bash(git *)`, `Bash(npm run *)`, `Read`
 - Review and justify each tool before finalizing
-- Avoid "full access" unless genuinely required
 
 Common combinations:
-- Read-only: `Bash, Read, Grep, Glob`
-- Code editing: `Read, Edit, Bash`
-- Interactive: `AskUserQuestion, TodoWrite`
-- Complex workflows: `Bash, Read, Edit, Grep, Glob, TodoWrite, AskUserQuestion`
-- With subagents: add `Task` to any combination above
+- Read-only: `Read Grep Glob`
+- Git operations: `Bash(git *) Read`
+- Code editing: `Read Edit Bash`
+- Interactive: `AskUserQuestion`
+- Complex workflows: `Bash Read Edit Grep Glob AskUserQuestion`
+- Subagents: add `Agent` to any combination above (named `Task` in older Claude Code versions)
 
-**argument-hint** (optional)
-- Show expected argument syntax
-- Use `<required>` and `[--optional]`
-- Example: `"<file-path> [--detailed] [--output-format]"`
-
-**description** (required)
-- Single line, under 100 characters
-- Describes what the command does, not how
+**disallowed-tools** (optional)
+- Explicitly block tools while this skill is active
+- Useful for autonomous loops: `disallowed-tools: AskUserQuestion`
 
 **model** (optional)
-- `haiku`: < 3 steps, no analysis needed
-- `sonnet`: default for most commands
-- `opus`: deep reasoning required
-- Omit to use user's default model
+- Accepts the same values as `/model`, or `inherit` to keep the active model
+- Guideline: `haiku` = simple lookup (< 3 steps), `sonnet` = most skills, `opus` = deep reasoning or complex multi-step tasks
+- Override applies for current turn only; session model resumes after
+
+**effort** (optional)
+- Override reasoning depth: `low`, `medium`, `high`, `xhigh`, `max`
+
+**context** (optional)
+- `fork`: run in an isolated subagent; skill content becomes the task prompt
+- Subagent has no access to your conversation history
+
+**agent** (optional, requires `context: fork`)
+- `Explore`: read-only codebase exploration (no CLAUDE.md loaded)
+- `Plan`: planning without implementation
+- `general-purpose`: default subagent
+- Any custom agent name from `.claude/agents/`
+
+**paths** (optional)
+- Glob patterns; Claude auto-invokes only when working with matching files
+- Example: `["src/**/*.ts"]` activates when editing TypeScript files
+
+**argument-hint** (optional)
+- Shown during autocomplete to indicate expected arguments
+- Use `<required>` and `[--optional]`
+
+**arguments** (optional)
+- Named positional arguments: `arguments: [issue, branch]`
+- Enables `$issue` and `$branch` substitution in skill content
+
+## Dynamic Context Injection
+
+Run shell commands before Claude sees the skill content. Output replaces the placeholder.
+
+Inline (single command):
+```markdown
+## Current diff
+!`git diff HEAD`
+
+## PR context
+!`gh pr view --comments`
+```
+
+Multi-line block (use ` ```! ` opener):
+````markdown
+## Environment
+```!
+node --version
+git status --short
+cat package.json | jq '.scripts'
+```
+````
+
+Rules:
+- `!` must appear at line start or immediately after whitespace
+- Commands run once at skill load, not re-executed on later turns
+- Output is plain text; no nested injection
+
+## String Substitutions
+
+| Variable | Description |
+|---|---|
+| `$ARGUMENTS` | All arguments as typed |
+| `$ARGUMENTS[0]` / `$0` | First argument (0-based index) |
+| `$ARGUMENTS[1]` / `$1` | Second argument |
+| `$name` | Named argument from `arguments:` frontmatter |
+| `${CLAUDE_SKILL_DIR}` | Absolute path to the skill directory |
+| `${CLAUDE_SESSION_ID}` | Current session ID |
+| `${CLAUDE_EFFORT}` | Active effort level |
+
+Multi-word arguments require quoting: `/my-skill "hello world" second` → `$0 = "hello world"`, `$1 = "second"`
 
 ## Document Structure
 
@@ -59,14 +151,12 @@ Minimal template:
 
 ```markdown
 ---
-allowed-tools: [tool list]
-argument-hint: "[syntax]"
-description: [one-line description]
+description: [what it does and when to use it]
 ---
 
-# Command Name
+# Skill Name
 
-Arguments: $ARGUMENTS
+$ARGUMENTS
 
 ## Execution Flow
 
@@ -74,18 +164,13 @@ Arguments: $ARGUMENTS
 2. Execute main logic
 3. Handle errors
 
-## Tool Usage
-
-TodoWrite: Use when 3+ steps required
-AskUserQuestion: Use when arguments unclear
-
 ## Error Handling
 
 If [condition]: [action]
 If unrecoverable error: report error type and user-actionable guidance
-
-Avoid: stack traces, file paths, internal details in user-facing errors
 ```
+
+Full error handling pattern: see the Error Handling section below.
 
 Avoid:
 - Table of contents
@@ -93,12 +178,39 @@ Avoid:
 - Emoji headers
 - Related commands sections
 
+## Invocation Control
+
+| Scenario | Configuration |
+|---|---|
+| Deploy, commit, send messages (side effects) | `disable-model-invocation: true` |
+| Background conventions Claude should apply | `user-invocable: false` |
+| Autonomous loop (no user interaction) | `disallowed-tools: AskUserQuestion` |
+| Research in isolated context | `context: fork` + `agent: Explore` |
+
+## Subagent Pattern
+
+Use `context: fork` instead of the `Task` tool when the entire skill is a delegated task:
+
+```yaml
+---
+description: Research implementation patterns for a topic
+context: fork
+agent: Explore
+---
+
+Research $ARGUMENTS:
+
+1. Find relevant files using Glob and Grep
+2. Read and analyze the code
+3. Return findings with specific file:line references
+```
+
 ## Security Guidelines
 
-### Security Risks in Slash Commands
+### Security Risks
 
 **HIGH**: Command injection via $ARGUMENTS
-- Mitigation: Sanitize paths (reject ../), escape before Bash execution
+- Mitigation: Sanitize paths (reject `../`), escape before Bash execution
 
 **MEDIUM**: Path traversal, sensitive file exposure
 - Mitigation: Validate against project root, grant minimum necessary tools
@@ -119,7 +231,6 @@ Parse $ARGUMENTS:
 - Escape arguments before passing to Bash
 - Reject unexpected patterns
 
-Example validation:
 If path contains ..: report error and exit
 If flag not in [allowed-flags]: report error and exit
 ```
@@ -127,35 +238,32 @@ If flag not in [allowed-flags]: report error and exit
 ### Tool Permission Security
 
 Apply least privilege principle:
-- Grant only tools actually used in execution flow
+- Use tool constraints: `Bash(git *)` not `Bash`
 - Avoid `Write` if command only reads
 - Avoid `Bash` if other tools suffice
 - Review tool list before finalizing
 
 ### Error Message Security
 
-```markdown
-## Error Handling
-
-If validation fails: report error type and required format
-If file not found: report filename only, not full path
-If command fails: report user-actionable guidance
-
-Never expose:
+Never expose in user-facing errors:
 - Stack traces
-- Absolute file paths
+- Absolute file paths (report filename only)
 - Internal system details
 - Sensitive environment information
-```
+
+Full error handling pattern: see the Error Handling section.
 
 ## Argument Processing
-
-Access user input via `$ARGUMENTS` variable.
 
 Simple positional:
 ```markdown
 Extract target from $ARGUMENTS (first token)
 If empty: use AskUserQuestion to select target
+```
+
+Named arguments (with frontmatter `arguments: [target, format]`):
+```markdown
+Migrate $target to $format.
 ```
 
 Multiple flags:
@@ -168,19 +276,10 @@ Parse flags from $ARGUMENTS:
 If invalid flag: report error with available flags
 ```
 
-Key-value pairs:
-```markdown
-Parse from $ARGUMENTS:
-- Extract key=value pairs
-- Validate values against constraints
-- Apply defaults for omitted keys
-```
-
 ## Tool Usage Patterns
 
-**TodoWrite**: 3+ steps, long operations, progress tracking
 **AskUserQuestion**: Missing/ambiguous arguments, multiple approaches, user decisions
-**Task (subagents)**: Complex exploration (Explore), specialized analysis (code-reviewer, security-auditor, performance-engineer)
+**Agent (subagents)**: Complex exploration, specialized analysis — or use `context: fork` in frontmatter instead
 
 **Workflow patterns:**
 
@@ -196,14 +295,13 @@ Code analysis:
 2. Locate files: Grep (patterns) or Glob (file types)
 3. Read and analyze
 4. Generate report
-5. If scope unclear: Task tool with Explore subagent
+5. If scope unclear: use `context: fork` + `agent: Explore`
 
 Interactive selection:
 1. Check $ARGUMENTS
 2. If missing: AskUserQuestion with 2-4 options
 3. Validate selection
-4. TodoWrite for multi-step execution
-5. Execute based on choice
+4. Execute based on choice
 
 ## Error Handling
 
@@ -222,8 +320,7 @@ If recoverable: suggest correction and retry
 If unrecoverable: report error type and exit
 
 Security:
-Never expose absolute paths, stack traces, or internal details
-Report only user-actionable information
+Report only user-actionable information (see Error Message Security)
 ```
 
 ## Examples
@@ -238,15 +335,15 @@ Provide 2-3 concrete examples covering normal, interactive, and error cases:
 /command invalid → Report error: "Invalid target format. Use: <name> or <path>"
 ```
 
-## Command Naming
+## Skill Naming
 
 Use kebab-case, verb-based names:
 - Good: `/analyze`, `/review-mr`, `/clean-jobs`
 - Avoid: `/Analysis`, `/MRReview`, `/cleanJobs`
 
 Prefixes:
-- No prefix: general-purpose commands
-- Avoid tech-specific prefixes unless necessary
+- No prefix: general-purpose skills
+- Tech-specific prefix: only when 3+ skills target the same tool/stack and name collisions are likely
 
 ## Writing Style
 
@@ -274,10 +371,12 @@ First parse the arguments, then validate the input, and finally execute the oper
 
 Before finalizing:
 
-- YAML frontmatter valid with minimum necessary tools
-- $ARGUMENTS validation and error handling specified
+- `description` written so Claude matches natural language requests correctly
+- Side-effect skills have `disable-model-invocation: true`
+- `allowed-tools` uses constraint syntax (`Bash(git *)`) not broad grants
+- `$ARGUMENTS` validation and error handling specified
 - Security considerations applied (input sanitization, path validation)
 - Examples provided with concrete input/output
 - Direct, imperative English instructions
 - No emojis, TOC, version numbers, or project-specific details
-
+- SKILL.md under 500 lines (move reference material to supporting files)

@@ -1,8 +1,7 @@
 ---
-allowed-tools: Bash, Read, AskUserQuestion, TodoWrite
-argument-hint: "[message] [--no-verify] [--amend]"
+name: commit
 description: Create Conventional Commits with emoji formatting
-model: sonnet
+disable-model-invocation: true
 ---
 
 # Git Commit Command
@@ -139,175 +138,50 @@ Report only user-actionable information
 
 **MANDATORY: Execute these validations BEFORE ANY commit operation**
 
-```bash
-# 1. Validate protected branches (prevent direct commits to main/master)
-validate_protected_branch() {
-  local current_branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+### 1. Protected Branch Check
 
-  if [[ -z "$current_branch" ]]; then
-    echo "ERROR: Not in a git repository"
-    exit 3
-  fi
+Run: `git rev-parse --abbrev-ref HEAD`
 
-  # Protected branch patterns (use variable to avoid regex parsing issues)
-  local protected_pattern='^(main|master)$'
-  if [[ "$current_branch" =~ $protected_pattern ]]; then
-    echo "ERROR: Direct commits to '$current_branch' are not allowed"
-    echo "Security policy: Use feature branches for development"
-    echo ""
-    echo "Create a feature branch:"
-    echo "  /branch feature your-feature-name"
-    echo "  git checkout -b feature/your-feature-name"
-    exit 2
-  fi
+If not in a git repository: report "ERROR: Not in a git repository" and exit 3
 
-  echo "✓ Branch validation passed ($current_branch)"
-  return 0
-}
+If branch matches `main` or `master`:
+- Report: "ERROR: Direct commits to '[branch]' are not allowed"
+- Suggest: `/branch feature your-feature-name` or `git checkout -b feature/your-feature-name`
+- Exit with code 2
 
-# 2. Validate sensitive files (prevent accidental commit of secrets)
-validate_sensitive_files() {
-  # Sensitive file patterns (from review-pr.md)
-  local sensitive_patterns=(.env .envrc .env.* credentials.* secrets.* *.pem *.key id_rsa .ssh/*)
-  local staged_files=$(git diff --cached --name-only 2>/dev/null)
+### 2. Sensitive File Check
 
-  if [[ -z "$staged_files" ]]; then
-    echo "ERROR: No staged files"
-    echo "Stage changes first: git add <files>"
-    exit 1
-  fi
+Run: `git diff --cached --name-only`
 
-  # Check each staged file against sensitive patterns
-  for file in $staged_files; do
-    for pattern in "${sensitive_patterns[@]}"; do
-      if [[ "$file" == $pattern ]]; then
-        echo "ERROR: Sensitive file detected: $file"
-        echo "Security policy: Sensitive files must not be committed"
-        echo ""
-        echo "Resolution:"
-        echo "  1. Unstage file: git reset HEAD $file"
-        echo "  2. Add to .gitignore: echo '$file' >> .gitignore"
-        echo "  3. Use environment variables instead"
-        exit 2
-      fi
-    done
-  done
+If no output: report "ERROR: No staged files. Stage changes first: git add <files>" and exit 1
 
-  echo "✓ Sensitive file validation passed"
-  return 0
-}
+If any staged file matches: `.env`, `.envrc`, `.env.*`, `credentials.*`, `secrets.*`, `*.pem`, `*.key`, `id_rsa`, `.ssh/*`:
+- Report: "ERROR: Sensitive file detected: [filename only, never full path]"
+- Suggest: `git reset HEAD <file>`, add to `.gitignore`, use environment variables instead
+- Exit with code 2
 
-# 3. Validate Conventional Commit format
-validate_conventional_commit() {
-  local message="$1"
+### 3. Commit Message Sanitization
 
-  # Centralized type definitions (single source of truth)
-  local allowed_types=("feat" "fix" "refactor" "docs" "style" "test" "chore" "perf")
-  local type_regex=$(IFS="|"; echo "${allowed_types[*]}")
+If message provided in $ARGUMENTS:
+- Detect dangerous characters (backtick, `$`, `(`): report error and exit 2
+- Detect secret patterns (`api_key=`, `password:`, `token=` followed by 8+ chars): warn and require user confirmation before proceeding
 
-  # Check format: type(scope): subject (use variable to avoid regex parsing issues)
-  local format_pattern="^($type_regex)(\([a-z0-9_-]+\))?:\ .+"
-  if [[ ! "$message" =~ $format_pattern ]]; then
-    echo "ERROR: Invalid Conventional Commit format"
-    echo "Expected: type(scope): subject"
-    echo "Got: $message"
-    return 1
-  fi
+### 4. Pre-commit Hook Handling
 
-  # Check subject length (max 72 characters after type/scope)
-  local subject=$(echo "$message" | sed 's/^[^:]*: //')
-  if [[ ${#subject} -gt 72 ]]; then
-    echo "ERROR: Subject too long (${#subject} chars, max 72)"
-    return 1
-  fi
+After `git commit` execution, if exit code != 0:
+- Check staged file types and suggest likely cause:
+  - `.ts`/`.tsx` files staged → suggest `npm run type-check`
+  - `.js`/`.jsx`/`.ts`/`.tsx` files staged → suggest `npm run lint:fix`
+- Never auto-retry with `--no-verify` unless it is explicitly present in $ARGUMENTS
 
-  # Check subject doesn't end with period
-  if [[ "$subject" =~ \.$ ]]; then
-    echo "ERROR: Subject should not end with period"
-    return 1
-  fi
+### 5. GPG Signature Check
 
-  echo "✓ Conventional Commit format valid"
-  return 0
-}
+Run: `git config --get commit.gpgsign`
 
-# 2. Handle pre-commit hook failures
-handle_pre_commit_hook() {
-  local hook_result="$1"
-
-  if [[ $hook_result -eq 0 ]]; then
-    echo "✓ Pre-commit hooks passed"
-    return 0
-  fi
-
-  # Detect hook failure type
-  echo "ERROR: Pre-commit hook failed (exit code: $hook_result)"
-
-  # Check for common hook failures
-  if git diff --cached --name-only | grep -q "\.ts$\|\.tsx$"; then
-    echo "Likely cause: TypeScript type errors"
-    echo "Fix: npm run type-check"
-  fi
-
-  if git diff --cached --name-only | grep -q "\.js$\|\.jsx$\|\.ts$\|\.tsx$"; then
-    echo "Likely cause: ESLint errors"
-    echo "Fix: npm run lint:fix"
-  fi
-
-  return $hook_result
-}
-
-# 3. Validate GPG signature (if enabled)
-validate_gpg_signature() {
-  # Check if commit signing is configured
-  local sign_commits=$(git config --get commit.gpgsign)
-
-  if [[ "$sign_commits" == "true" ]]; then
-    # Verify GPG key is available
-    if ! git config --get user.signingkey >/dev/null; then
-      echo "ERROR: GPG signing enabled but no signing key configured"
-      echo "Fix: git config user.signingkey YOUR_KEY_ID"
-      return 2
-    fi
-
-    echo "✓ GPG signature validation enabled"
-  fi
-
-  return 0
-}
-
-# 4. Safe argument parsing
-IFS=' ' read -r -a args <<< "$ARGUMENTS"
-COMMIT_MSG="${args[0]}"
-COMMIT_FLAGS=("${args[@]:1}")
-
-# Sanitize commit message (allow alphanumeric, spaces, common punctuation)
-if [[ -n "$COMMIT_MSG" ]]; then
-  # Detect command injection attempts (use variable to avoid regex parsing issues)
-  local dangerous_chars='[\`\$\(]'
-  if [[ "$COMMIT_MSG" =~ $dangerous_chars ]]; then
-    echo "ERROR: Dangerous characters detected in commit message"
-    exit 2
-  fi
-
-  # Detect hardcoded secrets in commit message (use variable to avoid regex parsing issues)
-  local secret_pattern='(api[_-]?key|password|secret|token|bearer|auth).{0,10}[=:].{8,}'
-  if [[ "$COMMIT_MSG" =~ $secret_pattern ]]; then
-    echo "WARNING: Possible secret detected in commit message"
-    echo "Pattern matched: ${BASH_REMATCH[0]}"
-    echo ""
-    echo "Security risk: Secrets in commit messages are publicly visible"
-    echo "Review message carefully before committing"
-    echo ""
-    read -p "Continue anyway? (y/N): " confirm
-    local confirm_pattern='^[Yy]$'
-    if [[ ! "$confirm" =~ $confirm_pattern ]]; then
-      echo "Commit aborted"
-      exit 2
-    fi
-  fi
-fi
-```
+If value is `true` and `git config --get user.signingkey` returns empty:
+- Report: "ERROR: GPG signing enabled but no signing key configured"
+- Suggest: `git config user.signingkey YOUR_KEY_ID`
+- Exit with code 2
 
 ## Exit Code System
 
@@ -330,11 +204,10 @@ COMMIT_TYPE="${type_scope%%(*}"           # Extract type before (
 COMMIT_SCOPE="${type_scope#*(}"            # Extract after (
 COMMIT_SCOPE="${COMMIT_SCOPE%)*}"          # Remove trailing )
 
-# Exit code propagation with git commit
+# Execute commit and propagate exit code
 git commit -m "$COMMIT_MSG" "${COMMIT_FLAGS[@]}"
 COMMIT_RESULT=$?
 if [[ $COMMIT_RESULT -ne 0 ]]; then
-  handle_pre_commit_hook $COMMIT_RESULT
   exit $COMMIT_RESULT
 fi
 
@@ -368,7 +241,6 @@ Next steps:
 **Error example**:
 ```
 ERROR: Pre-commit hook failed
-File: commit.md:handle_pre_commit_hook
 
 Reason: TypeScript type errors detected
 Got: 5 type errors in 2 files

@@ -23,7 +23,7 @@ Implementation assumes use of Bash-specific features (arrays, `[[]]`, advanced s
 - Execution on Alpine Linux, embedded systems
 - Portability priority (runs on multiple UNIX-like OSes)
 - Container image size minimization required
-- See `~/.claude/stacks/posix-shell.md` for details (complete POSIX compliance standards)
+- For POSIX sh implementation, use the `posix-shell-pro` agent (strict POSIX compliance; no dedicated rules doc exists)
 
 ### Target Audience
 - **Primary**: Claude Code (AI development agent)
@@ -62,7 +62,7 @@ Good: `error "Database initialization failed. Check credentials."`
 **Principle**: Display confirmation prompt with `read -p` before destructive operations like `rm -rf`, `truncate`. Default is No.
 
 Bad: `rm -rf "$directory"` ← Delete without confirmation
-Good: `read -p "Delete? [y/N]"; [[ $REPLY =~ ^[yY]$ ]] && rm -rf "$directory"`
+Good: `read -r -p "Delete? [y/N] " reply; [[ "$reply" =~ ^[yY]$ ]] && rm -rf "$directory"`
 
 ---
 
@@ -214,7 +214,7 @@ Good: HTTPS + `sha256sum -c` + content check + execution
 
 ## Usability Standards
 
-#### 1. Subcommand Help {#subcommand-help}
+#### 1. Subcommand Help
 
 **Principle**: Implement `show_help()` function that displays Usage, Commands, Options, Examples with `-h|--help`.
 
@@ -223,7 +223,7 @@ Good: `show_help() { cat <<EOF ... EOF }; case "$1" in -h|--help) show_help; exi
 
 ---
 
-#### 2. Debug Mode {#debug-mode}
+#### 2. Debug Mode
 
 **Principle**: Multi-level debugging with `DEBUG` environment variable. 0=none, 1=main processing, 2=variable values, 3=`set -x` trace.
 
@@ -232,7 +232,7 @@ Good: `DEBUG=${DEBUG:-0}; debug() { (( DEBUG >= $1 )) && echo "[DEBUG] $*" >&2; 
 
 ---
 
-#### 3. Version Information {#version-info}
+#### 3. Version Information
 
 **Principle**: Define `readonly VERSION="x.y.z"`, display with `-v|--version`. Including BUILD_DATE, GIT_COMMIT improves troubleshooting efficiency.
 
@@ -282,7 +282,7 @@ export LC_ALL=C  # Speed up locale processing
 
 ---
 
-#### 2. Reduce External Commands {#reduce-external-commands}
+#### 2. Reduce External Commands
 
 **Purpose**: Reduce process creation, improve speed
 
@@ -366,7 +366,7 @@ parallel wc -l ::: *.txt
 
 ---
 
-#### 4. Leverage Parallel Processing {#parallel-processing}
+#### 4. Leverage Parallel Processing
 
 **Purpose**: Utilize multi-core, speed up
 
@@ -402,7 +402,7 @@ for file in *.mp4; do
 
     # Wait when max parallel count reached
     if (( job_count >= max_jobs )); then
-        wait -n  # Wait for one job to complete
+        wait -n  # Wait for one job to complete (Bash 4.3+)
         job_count=$((job_count - 1))
     fi
 done
@@ -438,7 +438,7 @@ Good: `readonly MAX_ITEMS=100; readonly RETRY_DELAY=30`
 
 ---
 
-#### 3. Unified Error Handling Pattern {#error-handling}
+#### 3. Unified Error Handling Pattern
 
 **Principle**: Define unified error function. All to standard error output. 4 types: `error()` (continue), `die()` (exit), `warn()`, `debug()`.
 
@@ -447,7 +447,7 @@ Good: `error() { echo "Error: $*" >&2; return 1; }`
 
 ---
 
-#### 4. Separate Configuration from Implementation {#config-separation}
+#### 4. Separate Configuration from Implementation
 
 **Principle**: Prohibit hardcoding. Priority: environment variable > user config > system config > default value.
 
@@ -456,7 +456,7 @@ Good: `API_URL="${MYAPP_API_URL:-$DEFAULT_API_URL}"`
 
 ---
 
-#### 5. ShellCheck Compliance {#shellcheck}
+#### 5. ShellCheck Compliance
 
 **Principle**: Run `shellcheck` in CI/CD. Major warnings: SC2086 (unquoted variable), SC2034 (unused variable), SC2155 (declare simultaneous assignment).
 
@@ -510,6 +510,17 @@ show_version() {
 error() {
     echo "Error: $*" >&2
     return 1
+}
+
+die() {
+    local exit_code="$1"
+    shift
+    echo "Fatal: $*" >&2
+    exit "$exit_code"
+}
+
+warn() {
+    echo "Warning: $*" >&2
 }
 
 cleanup() {

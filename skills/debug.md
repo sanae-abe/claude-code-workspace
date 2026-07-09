@@ -1,7 +1,6 @@
 ---
-allowed-tools: Bash, Read, Write, Edit, Grep, TodoWrite, AskUserQuestion, Task
+description: Universal debugging - systematic diagnosis and fix for any bug severity. Use when asked to fix a bug, investigate an error, or debug unexpected behavior.
 argument-hint: "[bug or issue description]"
-description: Universal debugging - systematic diagnosis and fix for any bug severity
 model: sonnet
 ---
 
@@ -11,107 +10,97 @@ Debug target: $ARGUMENTS
 
 ## Argument Validation
 
-Execute validation before any operations:
+Validate before any operations (LLM judgment, not shell execution):
 
-```bash
-# Validate bug description
-validate_bug_description() {
-  local description="$1"
-
-  # Reject empty input
-  if [[ -z "$description" ]]; then
-    echo "ERROR: Bug description required"
-    echo "Usage: /debug \"description of issue\""
-    exit 1
-  fi
-
-  # Length validation (5-500 chars)
-  if [[ ${#description} -lt 5 || ${#description} -gt 500 ]]; then
-    echo "ERROR: Bug description must be 5-500 characters, got: ${#description}"
-    exit 1
-  fi
-
-  # Reject path traversal
-  if [[ "$description" =~ \.\. ]]; then
-    echo "ERROR: Path traversal detected in description"
-    exit 2
-  fi
-
-  # Reject command injection characters
-  local injection_pattern='[;`$()&|*?[]{}<>!\n\r]'
-  if [[ "$description" =~ $injection_pattern ]]; then
-    echo "ERROR: Invalid characters in bug description"
-    echo "Allowed: alphanumeric, spaces, punctuation (.,!?:-'\")"
-    exit 2
-  fi
-
-  # Whitelist validation
-  if [[ ! "$description" =~ ^[a-zA-Z0-9\ \.\,\!\?\:\-\'\"]+$ ]]; then
-    echo "ERROR: Bug description contains invalid characters"
-    echo "Example: \"Login fails with 401 error when session expires\""
-    exit 1
-  fi
-}
-
-# Safe argument parsing
-DESCRIPTION="$ARGUMENTS"
-validate_bug_description "$DESCRIPTION"
-```
-
-If validation fails: exit with error code 1 (user error) or 2 (security error)
+- Empty input: Use AskUserQuestion to ask for bug description
+- Contains `..`: Report "ERROR: Path traversal detected" and stop
+- Less than 3 characters: Ask for more details
+- Accept any language (Japanese, English, etc.) and punctuation
 
 ## Execution Flow
 
 1. Parse and validate bug description from $ARGUMENTS
-2. Execute automated diagnostics (TypeScript, ESLint, build, runtime errors)
+2. Auto-detect tech stack, then run automated diagnostics
 3. Identify root cause with systematic investigation
 4. Implement fix with appropriate quality standards
 5. Verify fix and check for regressions
 
 ## Tool Usage
 
-TodoWrite: Required for bug resolution workflow (4-5 tasks)
+TaskCreate: Required for bug resolution workflow (4-5 tasks)
 - Task 1: Automated diagnostics and initial assessment
 - Task 2: Root cause identification and analysis
 - Task 3: Fix implementation
 - Task 4: Verification and regression testing
 - Task 5: (Optional) Post-fix cleanup and documentation
 
+Mark each task in_progress before starting, completed immediately after finishing.
+
 AskUserQuestion: Use when bug type unclear or reproduction steps needed
 
 Task (debugger agent): Use for complex systematic debugging
 
+## Tech Stack Detection
+
+Before running diagnostics, detect project type by checking these files in order:
+
+1. `package.json` → Node.js/TypeScript
+2. `Cargo.toml` → Rust
+3. `go.mod` → Go
+4. `pyproject.toml` or `requirements.txt` → Python
+5. `Gemfile` → Ruby
+6. `composer.json` → PHP
+
 ## Automated Diagnostics
 
-Run parallel error detection for fast assessment:
+Run parallel error detection based on detected tech stack:
 
+**Node.js/TypeScript** (package.json detected):
 ```bash
-# Parallel error checks
-{
-  TS_ERRORS=$(npm run typecheck 2>&1 | grep -c "error" || echo "0") &
-  LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0") &
-  BUILD_STATUS=$(npm run build 2>&1 | grep -c "failed\|error" || echo "0") &
-  RUNTIME_ERRORS=$(grep -r "Error\|Exception" . --include="*.log" 2>/dev/null | wc -l || echo "0") &
-  wait
-}
+# Run these in parallel
+TS_ERRORS=$(npm run typecheck 2>&1 | grep -c "error" || echo "0") &
+LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0") &
+BUILD_STATUS=$(npm run build 2>&1 | grep -c "failed\|error" || echo "0") &
+wait
 
-echo "Diagnostics:"
-echo "  TypeScript errors: $TS_ERRORS"
-echo "  ESLint errors: $LINT_ERRORS"
-echo "  Build errors: $BUILD_STATUS"
-echo "  Runtime errors: $RUNTIME_ERRORS"
-
-# Suggest priority
-if [[ $TS_ERRORS -gt 0 ]]; then
-  echo "Priority: Fix TypeScript errors first"
-elif [[ $BUILD_STATUS -gt 0 ]]; then
-  echo "Priority: Fix build errors first"
-elif [[ $LINT_ERRORS -gt 0 ]]; then
-  echo "Priority: Fix ESLint errors first"
-else
-  echo "No obvious errors detected, investigate runtime behavior"
-fi
+echo "TypeScript errors: $TS_ERRORS"
+echo "ESLint errors: $LINT_ERRORS"
+echo "Build errors: $BUILD_STATUS"
 ```
+
+**Rust** (Cargo.toml detected):
+```bash
+COMPILE_ERRORS=$(cargo check 2>&1 | grep -c "^error" || echo "0") &
+CLIPPY_WARNINGS=$(cargo clippy 2>&1 | grep -c "^error\|^warning" || echo "0") &
+wait
+
+echo "Compile errors: $COMPILE_ERRORS"
+echo "Clippy warnings: $CLIPPY_WARNINGS"
+```
+
+**Python** (pyproject.toml/requirements.txt detected):
+```bash
+TYPE_ERRORS=$(mypy . 2>&1 | grep -c "error:" || echo "0") &
+LINT_ERRORS=$(ruff check . 2>&1 | grep -c "error" || echo "0") &
+TEST_FAILURES=$(pytest --tb=no -q 2>&1 | grep -c "FAILED" || echo "0") &
+wait
+
+echo "Type errors: $TYPE_ERRORS"
+echo "Lint errors: $LINT_ERRORS"
+echo "Test failures: $TEST_FAILURES"
+```
+
+**Go** (go.mod detected):
+```bash
+VET_ERRORS=$(go vet ./... 2>&1 | wc -l || echo "0") &
+BUILD_ERRORS=$(go build ./... 2>&1 | wc -l || echo "0") &
+wait
+
+echo "Vet errors: $VET_ERRORS"
+echo "Build errors: $BUILD_ERRORS"
+```
+
+Prioritize fixing: compile/type errors → build errors → lint errors → runtime errors
 
 ## Bug Investigation Workflow
 
@@ -163,39 +152,62 @@ Analysis: Include error traces, state inspection, data flow analysis
 - Test across browsers and screen sizes
 - Inspect React DevTools for re-render patterns
 
+**Rust Errors**:
+- Fix borrow checker violations (ownership, lifetimes)
+- Replace `unwrap()` with `?` operator or `expect("reason")`
+- Check type mismatches and missing trait implementations
+
+**Python Errors**:
+- Fix type annotation mismatches detected by mypy
+- Check import paths and module availability
+- Verify async/await usage and event loop handling
+
 ## Quality Standards
 
-Apply appropriate quality checks based on fix complexity:
+Run checks based on detected tech stack after implementing fix:
 
+**Node.js/TypeScript**:
 ```bash
-# TypeScript validation (always required)
 npm run typecheck || echo "TypeScript issues remain"
+npm run build >/dev/null 2>&1 && echo "Build OK" || echo "Build failed"
+npm run lint --quiet 2>/dev/null && echo "No lint errors" || echo "Lint errors"
+npm run test:run --silent 2>/dev/null && echo "Tests passing" || echo "Test issues"
+```
 
-# Build check (always required)
-npm run build >/dev/null 2>&1 && echo "Build successful" || echo "Build issues detected"
+**Rust**:
+```bash
+cargo check && echo "Compile OK" || echo "Compile errors"
+cargo clippy -- -D warnings && echo "No warnings" || echo "Clippy issues"
+cargo test 2>/dev/null && echo "Tests passing" || echo "Test failures"
+```
 
-# Lint check (required for non-emergency fixes)
-npm run lint --quiet 2>/dev/null && echo "No lint errors" || echo "Lint errors present"
+**Python**:
+```bash
+mypy . && echo "Type check OK" || echo "Type errors"
+ruff check . && echo "No lint errors" || echo "Lint errors"
+pytest -q 2>/dev/null && echo "Tests passing" || echo "Test failures"
+```
 
-# Tests (run if available)
-npm run test:run --silent 2>/dev/null && echo "Tests passing" || echo "Test issues detected"
+**Go**:
+```bash
+go vet ./... && echo "Vet OK" || echo "Vet issues"
+go build ./... && echo "Build OK" || echo "Build failed"
+go test ./... 2>/dev/null && echo "Tests passing" || echo "Test failures"
 ```
 
 ## Regression Prevention
 
-Check for unintended side effects:
+Check for unintended side effects after fix:
 
 ```bash
-# Analyze change impact
 git diff HEAD~1 --stat | head -5 || echo "No recent changes"
-
-# Test related components
-echo "Regression testing checklist:"
-echo "1. Test components that use the fixed code"
-echo "2. Test similar functionality in other areas"
-echo "3. Test error handling scenarios"
-echo "4. Verify no new console errors"
 ```
+
+Regression testing checklist:
+1. Test components that use the fixed code
+2. Test similar functionality in other areas
+3. Test error handling scenarios
+4. Verify no new console errors or warnings
 
 ## Error Handling
 
@@ -227,16 +239,17 @@ Never expose:
 
 ```
 /debug "login fails with 401 error" → Investigate authentication and token handling
+/debug "ログイン時に401エラーが発生する" → Same, Japanese input supported
 /debug "task creation freezes UI" → Check state updates and event handlers
-/debug "data not saved to database" → Verify API calls and error handling
+/debug "データがDBに保存されない" → Verify API calls and error handling
 /debug "app crashes on mobile Safari" → Browser compatibility investigation
 /debug → Interactive mode with AskUserQuestion for bug details
 ```
 
 ## Exit Codes
 
-- 0: Success - Bug fixed and verified
-- 1: User error - Invalid description, cannot reproduce
-- 2: Security error - Validation failure, permission denied
-- 3: System error - Build failure, tool unavailable
-- 4: Critical issue - Requires escalation or architectural change
+- 0: Bug fixed and verified
+- 1: User error - invalid description, cannot reproduce
+- 2: Security error - validation failure, permission denied
+- 3: System error - build failure, tool unavailable
+- 4: Critical issue - requires escalation or architectural change

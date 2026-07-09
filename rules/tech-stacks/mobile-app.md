@@ -16,7 +16,7 @@
 | Dev Start (Legacy) | `npm start` / `flutter run` | 90% | Metro Bundler / Hot Reload |
 | iOS Device | `npm run ios` / `flutter run -d ios` | 90% | Simulator launch |
 | Android Device | `npm run android` / `flutter run -d android` | 90% | Emulator launch |
-| Release Build | `npm run build:ios` / `flutter build ios` | 90% | Store distribution |
+| Release Build | `eas build` / `flutter build ios` | 90% | Store distribution |
 | Auto Deploy | `fastlane ios beta` / `fastlane android beta` | 80% | TestFlight / Play Console |
 | Security | MMKV / Keychain/KeyStore | Required | Encrypted storage |
 | Optimization | WebP + FlashList | Required | Performance maximization |
@@ -29,7 +29,7 @@
 |----------|--------------|---------|--------|--------|
 | **Dev Speed** | 9 | 8 | 3 | 3x |
 | **Performance** | 6 | 8 | 10 | 2x |
-| **Learning Curve (lower is better)** | 8 | 6 | 4 | 1x |
+| **Ease of Learning** | 8 | 6 | 4 | 1x |
 | **Ecosystem** | 9 | 7 | 10 | 2x |
 | **Long-term Maintenance** | 7 | 7 | 9 | 2x |
 | **Weighted Total** | 78 | 74 | 76 | - |
@@ -48,35 +48,47 @@
 | Rapid development & deployment | React Native + Expo |
 
 **React Native Recommendation**:
-- Use Expo (official recommended framework, OTA updates, easy builds)
-- Consider non-Expo only for specialized native modules
+- Use Expo (official recommended framework, EAS Build for CI/CD, easy setup)
+- OTA Updates via EAS Update (paid service — requires Expo subscription; not free)
+- Consider bare React Native only for specialized native modules not supported by Expo
+
+### New Architecture (React Native 0.74+)
+
+React Native New Architecture is enabled by default since RN 0.74:
+
+- **JSI (JavaScript Interface)**: Replaces the Bridge — synchronous JS↔Native communication, no serialization overhead
+- **Fabric**: New rendering system — synchronous UI updates, reduced layout passes
+- **Hermes**: Default JS engine since RN 0.70 — faster startup, lower memory, bytecode precompilation
+- **Expo Router**: File-based routing for Expo apps (App Router equivalent) — recommended for all new Expo projects
+
+**Migration Note**: New Architecture is on by default in RN 0.74+. Verify library compatibility before upgrading (`npx react-native-new-architecture-helper`).
 
 ## Quality Standards
 
 ### Device Support
 
 **Minimum Support Version (minSdkVersion / Deployment Target)**:
-- **iOS**: Latest 2 versions + 1 previous major version
-- **Android**: API 21+ (Android 5.0+) recommended, API 24+ (Android 7.0+) also consider
+- **iOS**: Latest 2 versions + 1 previous major version (iOS 17+ as of 2026)
+- **Android**: API 26+ (Android 8.0+) recommended — API 21 covers <1% of active devices (2026 data)
 - **Screen Sizes**: All devices (iPhone SE ~ iPad Pro, various Android)
 
 **Store Distribution Requirements (targetSdkVersion / SDK)**:
 - **iOS**: Latest Xcode + latest iOS SDK required for builds (min deployment target can be older)
-- **Android**: Target latest or latest-1 API level (new apps must target latest API)
+- **Android**: API 35 (Android 15) required for new apps submitted to Google Play since August 2025
 - **Note**: Build SDK ≠ support version (SDK = build time, minSdk = runtime minimum)
 
 ### Performance Standards & Optimization
 
 **Measurement Criteria**:
-- App Size: < 50MB (download size)
+- App Size: < 50MB initial download (mainstream apps); games/AI apps may exceed — use Android App Bundle / on-demand resources
 - Launch Time: < 2s (cold start)
-- FPS: Maintain 60fps (scrolling, animations)
+- FPS: Maintain 60fps (scrolling, animations), 120fps for ProMotion displays
 - Memory: Appropriate range, leak prevention
 
 **Optimization Techniques**:
 - **Images**: WebP format, appropriate size, lazy loading
 - **Lists**:
-  - React Native: `FlashList` (recommended, faster than FlatList) or `FlatList`
+  - React Native: Shopify's `FlashList` (recommended, 5-10x faster than FlatList) or `FlatList`
   - Flutter: `ListView.builder` with virtualization
 - **Memory**: useEffect cleanup, remove unused listeners
 - **Network**: Caching, offline support, optimized API calls
@@ -94,7 +106,7 @@ flutter build ios --analyze-size
 **Common Patterns**:
 - Image optimization: PNG → WebP conversion, remove unnecessary high-res images
 - Remove unused libraries: moment → dayjs (66KB → 2KB)
-- ProGuard optimization: Enable for release builds
+- ProGuard/R8 optimization: Enable for Android release builds
 - Lazy loading: Essential data only at startup, others in background
 - List optimization: FlatList → FlashList (React Native), large dataset support
 
@@ -106,17 +118,17 @@ flutter build ios --analyze-size
 |-------|---------|-------|-----------------|
 | **Unit Tests** | Logic/function validation | Jest/Vitest, flutter_test | 70-80% |
 | **Component Tests** | UI component validation | React Testing Library, Widget Testing | 60-70% |
-| **E2E Tests** | Flow validation on device/emulator | Detox, Maestro, flutter_driver | Cover main flows |
+| **E2E Tests** | Flow validation on device/emulator | Detox, Maestro, flutter_driver | 3+ critical user flows |
 
 **React Native**:
 - **Unit**: Jest + `@testing-library/react-native`
-- **E2E**: Detox (recommended, fast), Maestro (simple), Appium (cross-platform)
+- **E2E**: Detox (recommended, fast), Maestro (simple YAML-based), Appium (cross-platform)
 - **Mocking**: `jest.mock()`, mocks for `@react-native-community/netinfo`, etc.
 
 **Flutter**:
 - **Unit**: `flutter_test` (standard)
 - **Widget**: `WidgetTester`
-- **Integration**: `flutter_driver`, `integration_test`
+- **Integration**: `integration_test` (recommended), `flutter_driver` (legacy)
 
 **Implementation Patterns**:
 - TDD: Red (failing test) → Green (minimal implementation) → Refactor (improve)
@@ -147,7 +159,7 @@ flutter build ios --analyze-size
 - **Apply**: High-security apps only (banking, healthcare, payments)
 - **Recommended**: Public Key Pinning (works during certificate renewal)
 - **Libraries**: `react-native-ssl-pinning`, `TrustKit`
-- **Required Feature**: Emergency unpin (for certificate issues)
+- **Required Feature**: Emergency unpin mechanism (for certificate rotation emergencies)
 
 ### Permission Management
 
@@ -159,7 +171,7 @@ flutter build ios --analyze-size
 
 ### Code Protection
 
-**Android (ProGuard)**:
+**Android (ProGuard/R8)**:
 ```proguard
 # Security optimization rules
 -keepattributes SourceFile,LineNumberTable
@@ -168,11 +180,11 @@ flutter build ios --analyze-size
 ```
 
 **iOS**:
-- Enable Bitcode (App Store optimization)
+- Bitcode: Deprecated since Xcode 14 (2022) and removed from App Store — do not enable
 
 **JavaScript/Dart**:
-- React Native: Bundle obfuscation
-- Flutter: Compiled native code (no obfuscation needed)
+- React Native: Bundle obfuscation (limited effectiveness — keep sensitive logic in native layer)
+- Flutter: Compiled to native ARM code (better protection than JS bundles)
 
 **Root/Jailbreak Detection (Optional)**:
 - **Use Case**: Banking/payment apps
@@ -187,9 +199,41 @@ flutter build ios --analyze-size
 | M3: Insecure Communication | Certificate pinning, HTTPS required |
 | M4: Insecure Authentication | Token rotation, biometric auth |
 | M5: Insufficient Cryptography | AES-256, use standard libraries |
-| M9: Reverse Engineering | ProGuard + code obfuscation |
+| M9: Reverse Engineering | ProGuard/R8 + sensitive logic in native layer |
 
 ## Development & Operations
+
+### Post-Edit Mandatory Checks
+
+**Recommended execution order (React Native)**:
+```bash
+# 1. TypeScript type check
+npx tsc --noEmit
+
+# 2. Linter (auto-fix)
+npx eslint . --ext .ts,.tsx --fix
+
+# 3. Unit tests
+npm test -- --watchAll=false
+```
+
+**Flutter equivalent**:
+```bash
+dart analyze
+flutter test
+```
+
+**Time-constrained cases**:
+```bash
+# Minimum (within 30s): type check + lint
+npx tsc --noEmit && npx eslint . --ext .ts,.tsx
+
+# Standard (within 2min): above + unit tests
+npx tsc --noEmit && npx eslint . --ext .ts,.tsx && npm test -- --watchAll=false
+
+# Complete: above + build check (slow, CI/CD only)
+eas build --platform all --local
+```
 
 ### Monitoring & Crash Analytics
 
@@ -265,8 +309,8 @@ flutter build ios --analyze-size
 - URL verification
 
 **Libraries**:
-- React Native: `react-native-branch`, `@react-navigation/native`
-- Flutter: `uni_links`, `deep_link`
+- React Native: `@react-navigation/native` (built-in deep linking), `react-native-branch`
+- Flutter: `app_links` (recommended, replaces deprecated `uni_links`), `go_router` (built-in support)
 
 **Testing**: Required verification of various transition patterns (Safari, Chrome, email, SNS, etc.)
 
@@ -294,8 +338,8 @@ flutter build ios --analyze-size
 ### Native Module Integration
 
 **React Native**:
-- **iOS**: Swift/Objective-C Bridge (Native Modules)
-- **Android**: Java/Kotlin Bridge (Native Modules)
+- **iOS**: Swift/Objective-C — prefer Turbo Modules (New Architecture) over legacy Native Modules
+- **Android**: Kotlin/Java — prefer Turbo Modules (New Architecture) over legacy Native Modules
 - **Decision**: Check library existence → build if unavailable
 - **Testing**: Physical device required (many features don't work on simulator)
 
@@ -377,8 +421,8 @@ flutter build ios --analyze-size
 
 **React Native**:
 - **Top Priority**: `React Navigation` (stack, tab, drawer navigation)
-- **Web Integration**: `React Navigation` + Deep linking
-- **Lightweight**: `react-native-navigation` (native navigation)
+- **Expo projects**: `Expo Router` (file-based routing, built on React Navigation — recommended)
+- **Native-based**: `react-native-navigation` (Wix — uses native navigation components, requires significant native setup; not lightweight)
 
 **Flutter**:
 - **Top Priority**: `go_router` (official recommended, declarative routing, deep linking)
@@ -402,7 +446,7 @@ flutter build ios --analyze-size
 - Battery optimization support
 
 **Libraries**:
-- React Native: `react-native-background-task`
+- React Native: `react-native-background-fetch`, `@react-native-community/background-fetch`
 - Flutter: `workmanager`
 
 ## Store Optimization
@@ -435,4 +479,18 @@ end
 fastlane ios_beta
 ```
 
-**Result**: Manual 2 hours → Auto 15 minutes, easy weekly releases
+**Result**: Automates build numbering, compilation, upload, and Slack notification — significantly reduces manual steps after initial Fastlane setup.
+
+---
+
+## Document Metadata
+
+- **Primary Use Case**: Mobile app project kickoff, library selection, quality standards (weekly)
+- **Secondary Use Case**: Security review, store distribution guidance (monthly)
+- **Auto-update Trigger**: React Native major release, Google Play targetSdk requirement change, iOS deployment target update
+- **Obsolescence Risk**: Medium (RN New Architecture and Expo ecosystem evolve rapidly)
+- **Related Docs**: `~/.claude/rules/tech-stacks/frontend-web.md` (Web tech共通部分)
+- **Target**: Claude Code AI assistant
+- **React Native Version**: 0.74+ (New Architecture default)
+- **Flutter Version**: 3.x
+- **Last Updated**: 2026-05-29

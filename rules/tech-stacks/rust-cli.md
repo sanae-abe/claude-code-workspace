@@ -11,6 +11,7 @@
 cargo build              # Debug build
 cargo run                # Build + run
 cargo test               # Run tests
+cargo nextest run        # Faster test runner (2-3x, recommended)
 cargo clippy             # Linter (recommended)
 
 # Release build (90% usage)
@@ -250,6 +251,7 @@ writeln!(tmpfile, "sensitive data")?;
 
 - **When editing Cargo.toml**: `cargo update` to check dependency impact
 - **When adding dependencies**: `cargo audit` for security check (weekly recommended)
+- **Unused dependency detection**: `cargo machete` to find and remove unused crates
 - **MSRV management**: Explicit `rust-version = "1.75"` in `Cargo.toml`
 - **Feature flags**: Minimal defaults, explicitly enable optional features
 
@@ -259,6 +261,7 @@ writeln!(tmpfile, "sensitive data")?;
 
 - **Test coverage**: 60-80% target for new features (project dependent)
 - **Doc tests**: Required for public APIs (`cargo test --doc`)
+- **Faster test execution**: `cargo nextest run` (install: `cargo install cargo-nextest`)
 - **Benchmarks**: Use `criterion` for performance-critical features
 - **Property-based testing**: Use `proptest` for boundary condition tests
 
@@ -393,7 +396,7 @@ cargo tree --duplicates  # Detect duplicate dependencies
 
 **Error Handling**:
 - `anyhow` - Simple error handling, context addition
-- `thiserror` - Custom error type definition
+- `thiserror` - Custom error type definition (1.x and 2.x; API-compatible for basic use cases)
 - `Result<T>` - Error propagation (`?` operator)
 
 **CLI Development**:
@@ -426,15 +429,16 @@ cargo tree --duplicates  # Detect duplicate dependencies
 # Cargo.toml - Recommended for most projects
 [profile.release]
 opt-level = 3            # Maximum optimization
-lto = "thin"             # Thin LTO (balanced build time and binary size)
+lto = "thin"             # Thin LTO (build speed priority; works across codegen units)
 codegen-units = 16       # Default (parallel compilation, faster builds)
 strip = true             # Strip debug symbols
 
 # Extreme optimization (slower builds, smaller binaries)
 # Use only when binary size is critical (embedded, constrained environments)
+# Note: full LTO + codegen-units=1 works best together for maximum optimization
 [profile.release-optimized]
 inherits = "release"
-lto = true               # Full LTO
+lto = true               # Full LTO (best paired with codegen-units=1)
 codegen-units = 1        # Single unit (slowest builds, maximum optimization)
 ```
 
@@ -512,10 +516,10 @@ cd /tmp && cargo init --name test-project
 - **Secondary Use Case**: Code review for Rust projects (monthly)
 - **Auto-update Trigger**: Rust edition upgrade (yearly)
 - **Obsolescence Risk**: Low (Rust stability policy)
-- **Related Docs**: `~/.claude/stacks/shell-cli.md` (Shell vs Rust decision)
+- **Related Docs**: `~/.claude/rules/tech-stacks/shell-cli.md` (Shell vs Rust decision)
 - **Target**: Claude Code AI assistant
-- **Rust Version**: 1.75+ (MSRV)
-- **Last Updated**: 2025-11-12
+- **Rust Version**: 1.75+ (MSRV) / Current: 1.95.0
+- **Last Updated**: 2026-05-29
 - **Optimization**: Reduced from 349 to 235 lines (33% reduction)
 
 ---

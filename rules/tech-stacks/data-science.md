@@ -5,21 +5,40 @@
 ### Code Quality
 - **Type Hints**: Type hints required in function signatures
 - **Docstrings**: Documentation for functions and classes
-- **Linter**: 0 errors with flake8, pylint
-- **Formatter**: Unified formatting with black
+- **Linter/Formatter**: ruff（flake8/isort/pyupgrade の統合代替、10-100倍高速）
+- **Type Check**: mypy（data science では `--strict` は過剰、デフォルト設定推奨）
 
 **Validation commands:**
 ```bash
-black --check .
-flake8 . --max-line-length=88
-mypy --strict .
+ruff format --check .        # フォーマットチェック（旧 black）
+ruff check .                 # リントチェック（旧 flake8 + isort + pyupgrade）
+ruff check --fix .           # 自動修正
+mypy .                       # 型チェック（--strict は任意）
 ```
 
 ### Reproducibility
-- **Environment Management**: conda/venv + requirements.txt
+- **Environment Management**: uv（推奨、pip の10-100倍高速）または conda/venv
 - **Random Seed Fixing**: Explicit random_state/seed settings
-- **Data Versioning**: Use DVC
+- **Data Versioning**: DVC（データ・モデルのバージョン管理）
 - **Experiment Management**: MLflow, Weights & Biases
+
+**Environment management (uv):**
+```bash
+# プロジェクト初期化
+uv init my-ds-project && cd my-ds-project
+
+# パッケージ追加（pip install の代替）
+uv add pandas scikit-learn
+
+# 仮想環境有効化なしで実行
+uv run python train.py
+
+# requirements.txt 生成
+uv pip freeze > requirements.txt
+
+# 既存 requirements.txt からインストール
+uv pip install -r requirements.txt
+```
 
 **Reproducibility workflow:**
 ```python
@@ -35,11 +54,32 @@ def set_seeds(seed=42):
     # sklearn: specify random_state=seed in parameters
 ```
 
-**Environment freezing:**
+**DVC: データ・モデルバージョン管理:**
 ```bash
-# Snapshot environment
-pip freeze > requirements.txt
-conda env export > environment.yml
+dvc init
+dvc add data/train.csv          # データをDVC管理下に置く
+dvc run -n train \
+  -d data/train.csv \
+  -o models/model.pkl \
+  python train.py               # パイプライン定義
+dvc push                        # リモートストレージに保存
+dvc repro                       # パイプライン再現
+```
+
+**MLflow: 実験管理:**
+```python
+import mlflow
+import mlflow.sklearn
+
+with mlflow.start_run(run_name="random_forest_v1"):
+    mlflow.log_param("n_estimators", 100)
+    mlflow.log_param("max_depth", 5)
+    mlflow.log_metric("accuracy", 0.92)
+    mlflow.log_metric("f1_score", 0.89)
+    mlflow.sklearn.log_model(model, "model")
+
+# UIで確認
+# mlflow ui → http://localhost:5000
 ```
 
 ### Documentation
@@ -82,7 +122,7 @@ logging.info(f"Data access: {dataset_name} by {user_id} at {timestamp}")
 ### Dependency Security
 ```bash
 # Vulnerability scanning required
-safety check
+safety scan       # safety 3.x+ では check は廃止
 pip-audit
 ```
 
@@ -125,10 +165,10 @@ Tool selection by data size:
   ELIF data_size >= 100GB OR need_streaming:
       → dask + partitioning (streaming processing)
 
-  IF speed_critical AND data_fits_memory AND NOT ml_pipeline:
+  IF speed_critical AND data_fits_memory:
       → polars (Rust implementation, 5-10x faster than pandas)
-      Warning: Limited ML library integration (scikit-learn, PyTorch)
-      Use when: Data transformation heavy, minimal visualization needs
+      Note: .to_pandas() / .to_numpy() で scikit-learn / PyTorch に変換可能
+      Use when: 大規模データ前処理、ETL パイプライン、変換処理が主体
 ```
 
 ### Memory Optimization
@@ -604,9 +644,7 @@ IF small_team OR rapid_prototyping:
 ELIF production_scale AND need_features:
     → BentoML
     Features: Adaptive batching, A/B testing, autoscaling
-    Performance: 1500 req/sec (87.5% faster than Flask)
-    Memory: 450MB vs 650MB (Flask), 2.5s cold start
-    Integration: Kubernetes-ready, CI/CD friendly
+    Integration: Kubernetes-ready, CI/CD friendly, Docker image 自動生成
     Use when: Production ML services, team scaling
 
 ELIF gpu_intensive OR multi_framework:
@@ -696,8 +734,8 @@ Language selection decision tree:
 
 IF task == "ML/DL" OR task == "data_analysis":
     → Python
-    Reason: scikit-learn, pandas, TensorFlow, PyTorch
-    Note: Performance (GIL limitation)
+    Reason: scikit-learn, pandas, TensorFlow, PyTorch, Hugging Face
+    Note: Python 3.13+ は GIL 無効化オプション (--disable-gil) あり
 
 ELIF task == "statistical_analysis" AND team == "academic":
     → R
@@ -757,6 +795,112 @@ ELSE:
    - Retraining trigger setup
 ```
 
+## LLM / Generative AI Integration
+
+### ユースケース別ツール選択
+
+```markdown
+IF text_classification / NER / sentiment:
+    → transformers (Hugging Face) + fine-tuning
+    Library: transformers, datasets, peft (LoRA)
+
+ELIF RAG (Retrieval-Augmented Generation):
+    → Vector DB + LLM API
+    Vector DB: ChromaDB (local), Pinecone / Weaviate (cloud)
+    LLM: Anthropic Claude API / OpenAI API
+    Framework: LangChain / LlamaIndex
+
+ELIF structured_data_qa OR text_to_sql:
+    → LLM + few-shot prompting
+    Tool: Anthropic Claude API with tool use
+
+ELIF batch_inference (large scale):
+    → Anthropic Message Batches API (最大50%コスト削減)
+```
+
+### Hugging Face Transformers 基本パターン
+
+```python
+from transformers import pipeline, AutoModelForSequenceClassification, AutoTokenizer
+from datasets import load_dataset
+from peft import LoraConfig, get_peft_model
+
+# 推論のみ (pipeline)
+classifier = pipeline("text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
+result = classifier("This movie is great!")
+
+# ファインチューニング (LoRA: 少ないGPUメモリで効率的)
+model = AutoModelForSequenceClassification.from_pretrained("bert-base-uncased", num_labels=2)
+lora_config = LoraConfig(r=16, lora_alpha=32, target_modules=["query", "value"])
+model = get_peft_model(model, lora_config)
+model.print_trainable_parameters()  # 元の ~0.5% のパラメータのみ学習
+```
+
+### RAG パイプライン
+
+```python
+import chromadb
+import anthropic
+
+# Vector DB セットアップ
+client = chromadb.Client()
+collection = client.create_collection("documents")
+
+# ドキュメント追加
+collection.add(
+    documents=["doc1 content", "doc2 content"],
+    ids=["doc1", "doc2"]
+)
+
+# RAG クエリ
+def rag_query(question: str) -> str:
+    # 関連ドキュメント検索
+    results = collection.query(query_texts=[question], n_results=3)
+    context = "\n".join(results["documents"][0])
+
+    # LLM で回答生成
+    anthropic_client = anthropic.Anthropic()
+    response = anthropic_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        messages=[{
+            "role": "user",
+            "content": f"Context:\n{context}\n\nQuestion: {question}"
+        }]
+    )
+    return response.content[0].text
+```
+
+### バッチ推論（大規模処理）
+
+```python
+import anthropic
+
+client = anthropic.Anthropic()
+
+# Message Batches API（最大50%コスト削減、24時間以内処理）
+batch = client.messages.batches.create(
+    requests=[
+        {"custom_id": f"row-{i}", "params": {
+            "model": "claude-haiku-4-5-20251001",
+            "max_tokens": 256,
+            "messages": [{"role": "user", "content": text}]
+        }}
+        for i, text in enumerate(large_text_list)
+    ]
+)
+
+# 結果取得
+results = client.messages.batches.results(batch.id)
+```
+
+### セキュリティ注意事項
+
+- **API Key管理**: `.env` に保存、コードに直書き禁止
+- **Prompt Injection**: ユーザー入力をプロンプトに埋め込む際はサニタイズ
+- **PII**: LLM APIに個人情報を送信しない（匿名化必須）
+- **コスト管理**: `max_tokens` 必ず設定、バッチ処理でコスト削減
+
 ## AutoML Utilization Criteria
 
 ```markdown
@@ -783,3 +927,17 @@ Use WebFetch tool when external documentation is needed:
 - pandas official: https://pandas.pydata.org/
 - scikit-learn official: https://scikit-learn.org/
 - MLflow official: https://mlflow.org/
+- Hugging Face: https://huggingface.co/docs/transformers
+- Anthropic Claude API: https://docs.anthropic.com/
+- uv: https://docs.astral.sh/uv/
+- ruff: https://docs.astral.sh/ruff/
+
+---
+
+**Document Metadata**:
+- **Primary Use Case**: ML/DL 実装、データ分析タスク（週次）
+- **Secondary Use Case**: データパイプライン構築、モデルデプロイ（月次）
+- **Auto-update Trigger**: Python メジャーバージョンアップ（年次）、LLM ツール更新
+- **Target**: Claude Code AI assistant
+- **Python Version**: 3.12+ (MSRV)
+- **Last Updated**: 2026-05-29

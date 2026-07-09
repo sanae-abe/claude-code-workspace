@@ -11,11 +11,11 @@
 ```css
 /* OK */
 @media (any-hover: hover) {
-  .Button:hover { background-color: var(--primary, #8b5cf6); }
+  .Button:hover { background-color: var(--primary, #3b82f6); }
 }
 
 /* NG */
-.Button:hover { background-color: var(--primary, #8b5cf6); }
+.Button:hover { background-color: var(--primary, #3b82f6); }
 ```
 
 ## 2. アクセシビリティ
@@ -173,6 +173,13 @@
 
 **ルール**: アニメーション開始直前に追加、終了後に削除（ホバーでは不要）
 
+```css
+/* .is-animating が付いている間だけ will-change を有効化 */
+.Modal.is-animating {
+  will-change: transform, opacity;
+}
+```
+
 ```javascript
 // アニメーション開始前
 modal.classList.add('is-animating')
@@ -186,7 +193,14 @@ modal.addEventListener('transitionend', () => {
 
 ```css
 .ProductCard { contain: layout style paint; }
-.Modal { contain: strict; }
+
+/* contain: strict は size containment を含むため、明示的な width / height が必須。
+   未指定の場合、要素サイズが 0 になる。 */
+.Modal {
+  contain: strict;
+  width: 600px;   /* サイズ指定必須 */
+  height: 400px;  /* サイズ指定必須 */
+}
 ```
 
 ## 6. 命名規則
@@ -213,7 +227,7 @@ ELSE IF 最大幅制限 OR 中央配置 THEN container
 ```
 
 ```css
-.SectionWrapper { background-color: var(--bg); padding: 3rem 0; width: 100%; }
+.SectionWrapper { background-color: var(--bg, #fff); padding: 3rem 0; width: 100%; }
 .Container { max-width: 75rem; margin: 0 auto; padding: 0 1rem; }
 ```
 
@@ -228,7 +242,7 @@ ELSE IF 最大幅制限 OR 中央配置 THEN container
   --z-index-notification: 3000;
 }
 
-.Modal { z-index: var(--z-index-modal); }
+.Modal { z-index: var(--z-index-modal, 2100); }
 ```
 
 ## 9. 単位統一
@@ -247,7 +261,7 @@ ELSE rem
 ```css
 /* OK */
 .Text { font-size: 1rem; padding: 1.5rem; }
-.Card { border: 1px solid var(--border); }
+.Card { border: 1px solid var(--border-color, #e0e0e0); }
 
 /* NG */
 .Text { font-size: 16px; padding: 24px; }
@@ -271,7 +285,7 @@ ELSE rem
 
 | パターン | 代替案 |
 |---------|-------|
-| `!important` | 詳細度で解決（外部ライブラリ上書きのみ例外） |
+| `!important` | 詳細度で解決（例外: 外部ライブラリ上書き、`prefers-reduced-motion` リセット） |
 | 固定幅・高さ | `max-width`, `min-height` |
 | CSS変数フォールバックなし | `var(--x, fallback)` 必須 |
 
@@ -280,13 +294,15 @@ ELSE rem
 **ルール**: ユーザー入力からCSS変数生成時、ホワイトリスト検証必須
 
 ```typescript
-// 共通化推奨
+// 共通化推奨（ホワイトリストのみで検証 — 任意hexを通すregexフォールバックは検証を無効化するため禁止）
 export const ALLOWED_COLORS = ['#3b82f6', '#64748b'] as const;
+type AllowedColor = (typeof ALLOWED_COLORS)[number];
 
-export function validateCSSColor(input: string): string {
-  if (ALLOWED_COLORS.includes(input as any)) return input;
-  if (/^#[0-9A-Fa-f]{6}$/.test(input)) return input;
-  return '#3b82f6';
+export function validateCSSColor(input: string): AllowedColor {
+  if ((ALLOWED_COLORS as readonly string[]).includes(input)) {
+    return input as AllowedColor;
+  }
+  return '#3b82f6'; // 不正入力はデフォルト色にフォールバック
 }
 ```
 
@@ -315,6 +331,8 @@ export function validateCSSColor(input: string): string {
 }
 ```
 
+注: `.stylelintrc.json` はJSON形式のためコメント記述不可。`px` の許可範囲はボーダー幅（1-3px）・box-shadow・outline-offset・装飾アイコン固定サイズのみ（セクション9.1参照）。
+
 ### チェックリスト
 
 **必須**:
@@ -336,15 +354,31 @@ export function validateCSSColor(input: string): string {
 
 **ルール**: CDNからのCSS/フォントにSRIハッシュ必須
 
+**注意**: Google Fonts は User-Agent に応じて CSS を動的生成するため SRI が機能しない。
+セルフホスティング（`fontsource` 等）または静的ファイルを提供する CDN を使用すること。
+
 ```html
-<!-- OK -->
-<link href="https://fonts.googleapis.com/css2?family=Roboto"
+<!-- OK: 静的ファイルを配信する CDN（jsdelivr 等）-->
+<link href="https://cdn.jsdelivr.net/npm/normalize.css@8.0.1/normalize.css"
       rel="stylesheet"
       integrity="sha384-..."
       crossorigin="anonymous">
 
-<!-- NG -->
-<link href="https://fonts.googleapis.com/css2?family=Roboto" rel="stylesheet">
+<!-- OK: Google Fonts はセルフホスティングで回避 -->
+<!-- npm install @fontsource/roboto -->
+<link rel="stylesheet" href="/fonts/roboto.css">
+
+<!-- NG: Google Fonts に SRI は機能しない（動的生成のため毎回ハッシュが変わる）-->
+<!-- <link href="https://fonts.googleapis.com/css2?family=Roboto"
+      integrity="sha384-..." crossorigin="anonymous"> -->
+
+<!-- NG: SRI なしで外部 CDN -->
+<link href="https://cdn.example.com/lib.css" rel="stylesheet">
+```
+
+SRIハッシュ生成:
+```bash
+curl -s https://cdn.example.com/lib.css | openssl dgst -sha384 -binary | openssl base64 -A
 ```
 
 ### 12.2 CSP設定
@@ -352,12 +386,13 @@ export function validateCSSColor(input: string): string {
 **Vue/React対応**: nonce生成必須
 
 ```typescript
-// Next.js middleware例
-const nonce = crypto.randomBytes(16).toString('base64');
+// Next.js middleware例（Edge runtimeではnode:crypto不可 — Web Crypto使用）
+const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 const cspHeader = `
   style-src 'self' 'nonce-${nonce}';
   script-src 'self' 'nonce-${nonce}';
 `.replace(/\s{2,}/g, ' ').trim();
+// nonceはrequest headers経由でページに渡す（詳細: frontend-web.md CSPセクション）
 ```
 
 ### 12.3 Web Fonts
@@ -377,36 +412,45 @@ const cspHeader = `
 ### セキュリティ検証（Grep自動化）
 
 ```bash
-# CSS Injection検索
-rg "v-bind.*userInput|:style.*userInput" --type vue
+# CSS Injection検索（ripgrep は .vue をデフォルト認識しないため -g で指定）
+rg "v-bind.*userInput|:style.*userInput" -g "*.vue"
 
 # SRI未付与検索
-rg "<link.*https://.*rel=\"stylesheet\"" --type html | rg -v "integrity="
+rg '<link.*https://.*rel="stylesheet"' --type html | rg -v "integrity="
 
-# outline削除検出
-rg "outline:\s*none" --type css --type vue
+# outline削除検出（複数拡張子を対象にする場合は -g で列挙）
+rg "outline:\s*none" -g "*.css" -g "*.vue" -g "*.scss"
 ```
 
 ## 13. 新機能採用基準
 
 **基準**: ブラウザサポート80%+、プログレッシブエンハンスメント可能
 
-| 機能 | サポート | 用途 |
-|------|---------|------|
-| Container Queries | 90%+ | コンポーネント単位レスポンシブ |
-| `:has()` | 90%+ | 親要素セレクタ |
-| CSS Nesting | 85%+ | ネストセレクタ |
-| `color-mix()` | 85%+ | 動的カラー |
-| Cascade Layers | 90%+ | 優先度管理 |
-| Subgrid | 80%+ | グリッド入れ子 |
+| 機能 | サポート（2026年時点） | 用途 |
+|------|-------------------|------|
+| Container Queries | ~96% | コンポーネント単位レスポンシブ |
+| `:has()` | ~96% | 親要素セレクタ |
+| CSS Nesting | ~97% | ネストセレクタ |
+| `color-mix()` | ~95% | 動的カラー |
+| Cascade Layers | ~96% | 優先度管理 |
+| Subgrid | ~90% | グリッド入れ子 |
 
 ## 参考リンク
 
-- WCAG: https://www.w3.org/WAI/WCAG21/quickref/
+- WCAG 2.2: https://www.w3.org/WAI/WCAG22/quickref/
 - MDN: https://developer.mozilla.org/ja/docs/Web/CSS
-- CSS Triggers: https://csstriggers.com/
+- Rendering Performance: https://web.dev/articles/rendering-performance
 - Stylelint: https://stylelint.io/
 
 ---
 
-**バージョン**: 1.4.1 | **最終更新**: 2025-11-24 | **文字数**: 約38k（最適化版）
+## Document Metadata
+
+- **Primary Use Case**: CSS実装・レビュー時の規約参照（週次）
+- **Secondary Use Case**: Stylelint設定・アクセシビリティ監査（月次）
+- **Auto-update Trigger**: ブラウザサポート表の年次更新、WCAG改訂、Stylelintメジャーリリース
+- **Obsolescence Risk**: Medium（CSS新機能の採用基準は年次見直しが必要）
+- **Related Docs**: `~/.claude/rules/tech-stacks/frontend-web.md`, `~/.claude/rules/tech-stacks/vue-nuxt.md`
+- **Target**: Claude Code AI assistant
+- **Version**: 1.6.0
+- **Last Updated**: 2026-07-07

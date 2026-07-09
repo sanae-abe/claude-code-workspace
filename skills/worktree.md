@@ -1,5 +1,5 @@
 ---
-allowed-tools: Bash, Read, Write, Edit, Grep, Glob, TodoWrite, AskUserQuestion
+allowed-tools: Bash(git *) AskUserQuestion
 argument-hint: "[create|list|switch|merge|delete|status] [branch-name]"
 description: Git worktree management for parallel development workflows
 model: sonnet
@@ -26,12 +26,14 @@ Create new worktree for parallel development:
 
 1. Validate branch name (call validate_branch_name)
 2. Validate worktree path (call validate_worktree_path)
-3. Determine base branch (default: current branch or main)
-4. Create new branch and worktree with proper quoting:
+3. Determine base branch (default: `origin/HEAD`, fallback to local `HEAD`)
+4. Generate safe path: replace `/` in branch name with `-`
+5. Create new branch and worktree with proper quoting:
    ```bash
-   git worktree add -b "${BRANCH}" "../worktree-${BRANCH}" "${BASE_BRANCH}"
+   SAFE_BRANCH="${BRANCH//\//-}"
+   git worktree add -b "${BRANCH}" "../worktree-${SAFE_BRANCH}" "${BASE_BRANCH}"
    ```
-5. Output worktree path and next steps
+6. Output worktree path and next steps
 
 **Error handling**:
 - If branch exists: offer to switch instead
@@ -70,21 +72,30 @@ Switch to existing worktree:
 
 ### merge <branch-name> [--no-delete]
 
-Merge worktree branch to main and cleanup:
+Merge worktree branch to default branch and cleanup:
 
 1. Verify worktree exists
 2. Check for uncommitted changes in worktree
-3. Switch to main branch in current directory
-4. Pull latest changes: `git pull origin main`
-5. Merge worktree branch: `git merge <branch-name>`
-6. If merge successful and no conflicts:
-   - Push to remote: `git push origin main`
-   - Unless --no-delete: delete worktree and branch
-7. If conflicts: halt and instruct user to resolve
+3. Detect default remote and branch:
+   ```bash
+   REMOTE=$(git remote | head -1)
+   DEFAULT_BRANCH=$(git symbolic-ref "refs/remotes/${REMOTE}/HEAD" 2>/dev/null | sed "s|refs/remotes/${REMOTE}/||")
+   DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
+   ```
+4. Switch to default branch in current directory
+5. Pull latest changes: `git pull "${REMOTE}" "${DEFAULT_BRANCH}"`
+6. Merge worktree branch: `git merge <branch-name>`
+7. If merge conflicts: halt and instruct user to resolve manually
+8. If merge successful:
+   - Ask for confirmation via AskUserQuestion before pushing:
+     "Merge successful. Push to ${REMOTE}/${DEFAULT_BRANCH}?"
+   - If confirmed: `git push "${REMOTE}" "${DEFAULT_BRANCH}"`
+   - Unless --no-delete: delete worktree and branch (see Cleanup steps)
 
 **Cleanup steps** (unless --no-delete):
 ```bash
-git worktree remove "../worktree-${BRANCH}"
+SAFE_BRANCH="${BRANCH//\//-}"
+git worktree remove "../worktree-${SAFE_BRANCH}"
 git branch -d "${BRANCH}"
 ```
 
@@ -104,11 +115,9 @@ Remove worktree and branch:
 
 Show comprehensive worktree status:
 
-1. List all worktrees with TodoWrite tracking:
-   - For each worktree: check git status
-   - Count uncommitted changes
-   - Check if branch is ahead/behind remote
-2. Output summary:
+1. List all worktrees: `git worktree list --porcelain`
+2. For each worktree: check `git status` and ahead/behind count
+3. Output summary:
    - Total worktrees
    - Worktrees with uncommitted changes
    - Worktrees ahead/behind remote
@@ -116,9 +125,8 @@ Show comprehensive worktree status:
 
 ## Tool Usage
 
-**TodoWrite**: Use for multi-step operations (merge, delete with conflicts)
-
 **AskUserQuestion**: Use when:
+- About to push to remote (merge subcommand — always confirm)
 - Uncommitted changes detected (confirm deletion)
 - Merge conflicts require user decision
 - Ambiguous arguments (multiple matches)
@@ -133,47 +141,51 @@ validate_branch_name() {
 
   # Check allowed characters
   if [[ ! "$branch_name" =~ ^[a-zA-Z0-9/_-]+$ ]]; then
-    echo "ERROR: Invalid branch name. Use only: a-z A-Z 0-9 / _ -"
+    echo "ERROR: Invalid branch name. Use only: a-z A-Z 0-9 / _ -" >&2
     exit 1
   fi
 
   # Prevent directory traversal
   if [[ "$branch_name" =~ \.\. ]]; then
-    echo "ERROR: '..' not allowed in branch names"
+    echo "ERROR: '..' not allowed in branch names" >&2
     exit 1
   fi
 
   # Prevent branch names starting with dash (option injection)
   if [[ "$branch_name" =~ ^- ]]; then
-    echo "ERROR: Branch names cannot start with '-'"
+    echo "ERROR: Branch names cannot start with '-'" >&2
     exit 1
   fi
 }
 
 validate_worktree_path() {
   local branch_name="$1"
+  local repo_root
   local repo_parent
 
   # Get repository root
-  repo_parent=$(git rev-parse --show-toplevel 2>/dev/null)
-  if [[ -z "$repo_parent" ]]; then
-    echo "ERROR: Not a git repository"
+  repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [[ -z "$repo_root" ]]; then
+    echo "ERROR: Not a git repository" >&2
     exit 1
   fi
 
+  # Convert '/' in branch name to '-' for safe path generation
+  local safe_branch="${branch_name//\//-}"
+
   # Worktree must be in parent directory of repo
-  repo_parent=$(dirname "$repo_parent")
-  local worktree_path="${repo_parent}/worktree-${branch_name}"
+  repo_parent=$(dirname "$repo_root")
+  local worktree_path="${repo_parent}/worktree-${safe_branch}"
 
   # Verify path is directly under repo parent (no subdirectories)
   if [[ "$(dirname "$worktree_path")" != "$repo_parent" ]]; then
-    echo "ERROR: Worktree must be in repository parent directory"
+    echo "ERROR: Worktree must be in repository parent directory" >&2
     exit 1
   fi
 
   # Reject symbolic links
   if [[ -e "$worktree_path" && -L "$worktree_path" ]]; then
-    echo "ERROR: Worktree path cannot be a symbolic link"
+    echo "ERROR: Worktree path cannot be a symbolic link" >&2
     exit 1
   fi
 }
@@ -181,11 +193,12 @@ validate_worktree_path() {
 
 **Safe git command execution**:
 ```bash
-# After validation, always use proper quoting
-git worktree add -b "${BRANCH}" "../worktree-${BRANCH}" "${BASE_BRANCH}"
+# After validation, convert '/' to '-' for path; keep original name for branch
+SAFE_BRANCH="${BRANCH//\//-}"
+git worktree add -b "${BRANCH}" "../worktree-${SAFE_BRANCH}" "${BASE_BRANCH}"
 
 # NEVER use unquoted variables:
-# ❌ git worktree add -b $BRANCH ../worktree-$BRANCH $BASE_BRANCH
+# ERROR: git worktree add -b $BRANCH ../worktree-$BRANCH $BASE_BRANCH
 ```
 
 ## Error Handling
@@ -203,7 +216,7 @@ git worktree add -b "${BRANCH}" "../worktree-${BRANCH}" "${BASE_BRANCH}"
 
 **User-actionable error format**:
 ```
-Error: Branch 'feature-auth' already exists
+ERROR: Branch 'feature-auth' already exists
 
 Suggestions:
 1. Switch to existing worktree: /worktree switch feature-auth
@@ -211,13 +224,12 @@ Suggestions:
 3. Delete existing: /worktree delete feature-auth
 ```
 
-
 ## Output Format Examples
 
 **Success example**:
 ```
-✓ Created worktree: ../worktree-feature-name
-✓ Branch: feature-name (from main)
+Created worktree: ../worktree-feature-name
+Branch: feature-name (from main)
 
 Next steps:
   cd ../worktree-feature-name

@@ -1,8 +1,7 @@
 ---
 allowed-tools: Bash, AskUserQuestion
 argument-hint: "[--auto]"
-description: Safe cleanup of background jobs
-model: sonnet
+description: Safe cleanup of background jobs created in the current Claude session. Use when a task completes, or when the user says "clean up", "stop servers", "stop background jobs".
 ---
 
 # Background Job Cleanup
@@ -11,6 +10,25 @@ Arguments: $ARGUMENTS
 
 Safely cleans up only background jobs created in the current Claude Code session.
 Does not affect other Claude Code sessions or separate terminal processes.
+
+## Exit Code Constants
+
+Define at the start of implementation:
+
+```bash
+readonly EXIT_SUCCESS=0
+readonly EXIT_USER_ERROR=1
+readonly EXIT_SECURITY_ERROR=2
+readonly EXIT_SYSTEM_ERROR=3
+readonly EXIT_UNRECOVERABLE=4
+```
+
+Exit code usage:
+- `EXIT_SUCCESS` (0): Jobs cleaned up successfully
+- `EXIT_USER_ERROR` (1): Invalid job numbers, no jobs to clean
+- `EXIT_SECURITY_ERROR` (2): Input validation failed, suspicious input
+- `EXIT_SYSTEM_ERROR` (3): Kill command failed, jobs command unavailable
+- `EXIT_UNRECOVERABLE` (4): Critical cleanup failure
 
 ## Modes
 
@@ -46,6 +64,45 @@ done
 ## Tool Usage
 
 AskUserQuestion: Present cleanup method selection with 3 options (clean all, select individually, cancel)
+
+## Helper Functions
+
+Define these before any step:
+
+```bash
+validate_pid() {
+    local pid=$1
+    [[ "$pid" =~ ^[0-9]+$ ]]
+}
+
+kill_jobs() {
+    local pids=("$@")
+
+    if [[ ${#pids[@]} -eq 0 ]]; then
+        echo "No jobs to clean up"
+        return 0
+    fi
+
+    # Batch kill (single system call for performance)
+    if kill "${pids[@]}" 2>/dev/null; then
+        echo "${#pids[@]} jobs cleaned up"
+        return 0
+    else
+        # Fallback: count successful kills
+        local killed_count=0
+        for pid in "${pids[@]}"; do
+            if validate_pid "$pid" && kill "$pid" 2>/dev/null; then
+                ((++killed_count))
+            fi
+        done
+        echo "$killed_count jobs cleaned up"
+        if [[ $killed_count -lt ${#pids[@]} ]]; then
+            echo "Some jobs may have already terminated"
+        fi
+        return 0
+    fi
+}
+```
 
 ## Implementation Details
 
@@ -94,38 +151,6 @@ Use AskUserQuestion with the following options:
 #### Option A: Clean up all
 
 ```bash
-# Helper functions
-validate_pid() {
-    local pid=$1
-    [[ "$pid" =~ ^[0-9]+$ ]]
-}
-
-kill_jobs() {
-    local pids=("$@")
-
-    if [[ ${#pids[@]} -eq 0 ]]; then
-        echo "No jobs to clean up"
-        return 0
-    fi
-
-    # Batch kill (single system call for performance)
-    if kill "${pids[@]}" 2>/dev/null; then
-        echo "${#pids[@]} jobs cleaned up"
-        return 0
-    else
-        # Fallback: count successful kills
-        local killed_count=0
-        for pid in "${pids[@]}"; do
-            validate_pid "$pid" && kill "$pid" 2>/dev/null && ((killed_count++))
-        done
-        echo "$killed_count jobs cleaned up"
-        if [[ $killed_count -lt ${#pids[@]} ]]; then
-            echo "Some jobs may have already terminated"
-        fi
-        return 0
-    fi
-}
-
 # Get all job PIDs and kill them
 pids=($(jobs -p))
 kill_jobs "${pids[@]}"
@@ -143,28 +168,25 @@ job_numbers="$USER_INPUT"
 # Input validation: empty check
 if [[ -z "$job_numbers" ]]; then
     echo "ERROR: No job numbers provided"
-    echo "File: clean-jobs.md:135 - Input Validation"
     echo ""
     echo "Usage: Enter space-separated job numbers (e.g., 1 3 5)"
-    exit 1
+    exit "$EXIT_USER_ERROR"
 fi
 
 # Input validation: format check (digits and spaces only)
 if [[ ! "$job_numbers" =~ ^[0-9\ ]+$ ]]; then
     echo "ERROR: Job numbers must be digits and spaces only"
-    echo "File: clean-jobs.md:141 - Format Validation"
     echo ""
     echo "Example: 1 3 5"
-    exit 1
+    exit "$EXIT_SECURITY_ERROR"
 fi
 
 # Input validation: length limit (DoS prevention)
 if [[ ${#job_numbers} -gt 100 ]]; then
     echo "ERROR: Input too long (max 100 characters)"
-    echo "File: clean-jobs.md:148 - DoS Prevention"
     echo ""
     echo "Reduce number of job selections"
-    exit 1
+    exit "$EXIT_SECURITY_ERROR"
 fi
 
 # Race condition prevention: pre-fetch PIDs
@@ -308,7 +330,7 @@ if [[ "$AUTO_MODE" == "true" ]]; then
 
     # Kill cleanup_required jobs using helper function
     if [[ ${#cleanup_pids[@]} -gt 0 ]]; then
-        echo "✓ Cleaned up background jobs:"
+        echo "Cleaned up background jobs:"
         kill_jobs "${cleanup_pids[@]}"
     else
         echo "No background jobs to clean up"
@@ -317,25 +339,6 @@ if [[ "$AUTO_MODE" == "true" ]]; then
     exit 0
 fi
 ```
-
-## Exit Code System
-
-Exit code constants (define at start of implementation):
-
-```bash
-readonly EXIT_SUCCESS=0
-readonly EXIT_USER_ERROR=1
-readonly EXIT_SECURITY_ERROR=2
-readonly EXIT_SYSTEM_ERROR=3
-readonly EXIT_UNRECOVERABLE=4
-```
-
-Exit code usage:
-- `EXIT_SUCCESS` (0): Jobs cleaned up successfully
-- `EXIT_USER_ERROR` (1): Invalid job numbers, no jobs to clean
-- `EXIT_SECURITY_ERROR` (2): Input validation failed, suspicious input
-- `EXIT_SYSTEM_ERROR` (3): Kill command failed, jobs command unavailable
-- `EXIT_UNRECOVERABLE` (4): Critical cleanup failure
 
 ## Session Isolation
 
