@@ -1,25 +1,30 @@
 # Frontend Web Development
 
-## Quick Start
+> **AI Usage Note**: `[CRITICAL]` sections apply to every frontend task. `[REFERENCE]` sections are lookup tables — read them only when the task touches that area.
+
+## [CRITICAL] Quick Start
+
+Use the project's `package.json` script when one is defined; the `npx` forms below are the fallback that works in any project.
 
 ```bash
 # Development
-npm run dev              # Vite/Webpack dev server
-npm run type-check       # TypeScript type check
-npm run lint:fix         # ESLint auto-fix
+npm run dev                 # Dev server (Vite / Next / Nuxt)
+npx tsc --noEmit            # TypeScript type check
+npx eslint . --fix          # ESLint auto-fix
 
 # Quality
-npm run test             # Run tests (Vitest/Jest)
-npm run format           # Prettier formatting
-npm run build            # Production build
+npx vitest run              # Tests (or: npx jest)
+npx prettier --write .      # Format
+npm run build               # Production build
 
 # Analysis
-npm run build -- --analyze  # Bundle size analysis
-npm run lighthouse          # Core Web Vitals
-npm run test:coverage       # Test coverage
+npx vite-bundle-visualizer  # Bundle composition (or: webpack-bundle-analyzer)
+npx size-limit              # Bundle budget check
+npx lhci autorun            # Core Web Vitals (Lighthouse CI)
+npx vitest run --coverage   # Test coverage
 ```
 
-## Framework Selection
+## [REFERENCE] Framework Selection
 
 **By project size**:
 - **Vue**: Components < 50 (1-week learning curve)
@@ -31,20 +36,28 @@ npm run test:coverage       # Test coverage
 - **Astro**: Static site (zero JS by default)
 - **Svelte**: Interactive docs (minimal bundle)
 
-## Build Tools
+## [REFERENCE] Build Tools
 
-### Package Managers (2025-2026)
+### Package Managers
 
 - **pnpm**: Fast, efficient (Monorepo recommended)
 - **Bun**: Fastest (New projects)
 - **npm**: Standard (Legacy projects)
 - **Yarn**: Legacy (Migration to pnpm)
 
-## Quality Standards
+### Bundler Selection
+
+- **Vite**: Fastest DX (New projects, recommended)
+- **Turbopack**: Next.js App Router recommended (significantly faster than Webpack; benchmark results vary by environment)
+- **Rspack**: 10x Webpack (Webpack migration)
+- **esbuild**: Ultra-fast (Simple projects)
+- **Webpack**: Customizable (Legacy large-scale only)
+
+## [CRITICAL] Quality Standards
 
 ### TypeScript
 - **strict mode**: `"strict": true` in tsconfig.json
-- **Zero type errors**: Validate with `npm run type-check`
+- **Zero type errors**: Validate with `npx tsc --noEmit`
 - **Type inference**: Minimize `any` usage
 - **`satisfies` operator** (TS 4.9+): Type-validates without widening — `{ port: 3000 } satisfies Record<string, number>`
 - **Utility types**: `Awaited<T>`, `ReturnType<T>`, `Parameters<T>` for deriving types without duplication
@@ -60,15 +73,41 @@ npm run test:coverage       # Test coverage
 - **Unified format**: Consistent code style
 - **Auto-format**: On save or pre-commit
 
-### Bundler Selection (2025-2026)
+### Post-Edit Mandatory Checks
 
-- **Vite**: Fastest DX (New projects, recommended)
-- **Turbopack**: Next.js App Router recommended (significantly faster than Webpack; benchmark results vary by environment)
-- **Rspack**: 10x Webpack (Webpack migration)
-- **esbuild**: Ultra-fast (Simple projects)
-- **Webpack**: Customizable (Legacy large-scale only)
+**Recommended execution order**:
+```bash
+# 1. Type check (detect type errors first — cheapest signal)
+npx tsc --noEmit
 
-## Security
+# 2. Linter (auto-fix)
+npx eslint . --fix
+
+# 3. Unit tests (regression prevention)
+npx vitest run          # or: npx jest --ci
+
+# 4. (Optional) Bundle budget — only when dependencies or imports changed
+npm run build && npx size-limit
+```
+
+**Time-constrained cases**:
+```bash
+# Minimum (within 30s): type check + lint
+npx tsc --noEmit && npx eslint . --fix
+
+# Standard (within 2min): above + unit tests
+npx tsc --noEmit && npx eslint . --fix && npx vitest run
+
+# Complete (CI only): above + build + budget + E2E
+npm run build && npx size-limit && npx playwright test
+```
+
+**Exception cases**:
+- **Large refactoring**: type check + lint only; run tests at the final stage
+- **Style-only change** (CSS/token edits): lint + visual regression; skip unit tests
+- **Emergency fix**: type check only; run the full set immediately after
+
+## [CRITICAL] Security
 
 ### Authentication & Authorization
 
@@ -98,13 +137,24 @@ npm run test:coverage       # Test coverage
 - **Backend**: API-level authorization required (verify role on every request)
 
 ### XSS Prevention
-- **React auto-escape**: Default escaping with `{variable}`
-- **DOMPurify**: Required for raw HTML
-  ```tsx
-  import DOMPurify from 'dompurify';
-  const clean = DOMPurify.sanitize(dirtyHTML);
-  ```
+- **React auto-escape**: Default escaping with `{variable}` — always the first choice
+- **DOMPurify**: Required for any raw HTML (including rendered Markdown)
 - **dangerouslySetInnerHTML**: Forbidden except with DOMPurify
+
+```tsx
+// Dangerous: raw user input
+<div dangerouslySetInnerHTML={{ __html: userInput }} />
+
+// Safe: React auto-escape
+<div>{userInput}</div>
+
+// Safe: sanitize before injecting (e.g. rendered Markdown)
+import DOMPurify from 'dompurify';
+import marked from 'marked';
+
+const clean = DOMPurify.sanitize(marked(markdown));
+<div dangerouslySetInnerHTML={{ __html: clean }} />
+```
 
 ### Sensitive Data Protection
 
@@ -199,7 +249,7 @@ cat library.js | openssl dgst -sha384 -binary | openssl base64 -A
 # https://www.srihash.org/
 ```
 
-## Performance
+## [CRITICAL] Performance
 
 ### Core Web Vitals (Targets)
 - **LCP (Largest Contentful Paint)**: < 2.5s (Good)
@@ -208,7 +258,7 @@ cat library.js | openssl dgst -sha384 -binary | openssl base64 -A
 
 Note: INP replaced FID in March 2024
 
-### Bundle Size Standards (2024-2025)
+### Bundle Size Standards
 
 **Targets**:
 - **Critical JS**: < 100KB (Brotli), < 130KB (gzip), < 400KB (uncompressed)
@@ -270,7 +320,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 </body>
 ```
 
-**Metrics impact**:
+**Metrics impact** (FCP < 1.0s is the budget value in [Performance Testing and Monitoring](#performance-testing-and-monitoring)):
 - Optimized Critical Path → FCP < 1.0s, LCP < 2.0s
 - Poor Critical Path → FCP > 2.0s, LCP > 4.0s
 
@@ -316,13 +366,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 
 ### Font Loading Optimization
 
-**Preload critical fonts**:
-```html
-<head>
-  <link rel="preload" href="/fonts/inter-var.woff2" as="font"
-        type="font/woff2" crossorigin>
-</head>
-```
+**Preload critical fonts**: `<link rel="preload" as="font" crossorigin>` — see [Critical Rendering Path](#critical-rendering-path) for the full `<head>` order
 
 **font-display strategy**:
 ```css
@@ -348,7 +392,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - 30% smaller than WOFF
 - 98% browser support (all modern browsers)
 
-## State Management
+## [REFERENCE] State Management
 
 ### Client State
 
@@ -369,7 +413,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - `use()`: Read promises/context in render — pairs with Suspense for data fetching
 - Use for simple cases; TanStack Query remains preferred for complex caching
 
-## Styling
+## [REFERENCE] Styling
 
 ### CSS Frameworks
 
@@ -381,27 +425,25 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 
 ### CSS Coding Standards
 
-**包括的なCSS規約**: [CSS Coding Standards](./css-coding-standards.md)
+**Full CSS convention**: [css-coding-standards.md](./css-coding-standards.md) — authoritative source; the summary below is a pointer, not a substitute.
 
-**主要ルール**:
-- `:hover` は `@media (any-hover: hover)` で囲む（タッチデバイス対応）
-- `:focus-visible` 必須（アクセシビリティ）
-- `prefers-reduced-motion` 尊重（前庭障害・てんかん対応）
-- CSS変数必須（デザイントークン）、フォールバック値付き
-- `rem` 単位推奨（ユーザー設定尊重）
-- `transition: all` 禁止（個別プロパティ指定）
-- `outline: none` 絶対禁止（アクセシビリティ違反）
+**Key rules**:
+- Wrap `:hover` in `@media (any-hover: hover)` (touch devices)
+- `:focus-visible` styles required (accessibility)
+- Respect `prefers-reduced-motion` (vestibular disorders, epilepsy)
+- CSS variables required for design tokens, always with a fallback value
+- `rem` units preferred (respects user font-size settings)
+- `transition: all` forbidden (specify individual properties)
+- `outline: none` strictly forbidden (accessibility violation)
 
-**命名規則**:
-- 状態: `is-active`, `is-disabled`（is- Prefix）
-- 条件: `has-icon`, `has-image`（has- Prefix）
-- ユーティリティ: `u-pc-only`, `u-sp-only`（u- Prefix）
-- Vueコンポーネント: `ProductCard`（PascalCase）
-- BEM Modifier（`--`）: 禁止（is-/has- Prefixに移行）
+**Naming convention**:
+- State: `is-active`, `is-disabled` (`is-` prefix)
+- Condition: `has-icon`, `has-image` (`has-` prefix)
+- Utility: `u-pc-only`, `u-sp-only` (`u-` prefix)
+- Vue components: `ProductCard` (PascalCase)
+- BEM modifier (`--`): forbidden — migrate to `is-`/`has-` prefixes
 
-**詳細**: [~/.claude/rules/tech-stacks/css-coding-standards.md](./css-coding-standards.md)
-
-## Testing
+## [CRITICAL] Testing
 
 ### Test Pyramid
 
@@ -430,7 +472,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - **Use**: Design system components
 - **Frequency**: Per PR for UI changes
 
-## Accessibility
+## [CRITICAL] Accessibility
 
 ### WCAG 2.2 Compliance
 
@@ -445,7 +487,7 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 - `axe-core` (runtime testing)
 - Lighthouse accessibility audit
 
-## Error Handling & Monitoring
+## [REFERENCE] Error Handling & Monitoring
 
 ### Error Boundaries (React)
 
@@ -508,7 +550,7 @@ Sentry.init({
 - Enable error tracking only
 - Include user context: user ID, timestamp, page URL
 
-## Forms & Validation
+## [REFERENCE] Forms & Validation
 
 ### Form Libraries
 
@@ -573,7 +615,7 @@ function LoginForm() {
 }
 ```
 
-## Internationalization (i18n)
+## [REFERENCE] Internationalization (i18n)
 
 ### i18n Libraries
 
@@ -604,7 +646,7 @@ i18n.use(initReactI18next).init({
 - **Pluralization**: ICU MessageFormat (`{count, plural, one {# item} other {# items}}`)
 - **RTL support**: Arabic, Hebrew (CSS `dir="rtl"`)
 
-## Deployment & Hosting
+## [REFERENCE] Deployment & Hosting
 
 ### Hosting Platforms
 
@@ -613,61 +655,16 @@ i18n.use(initReactI18next).init({
 - **Cloudflare Pages**: Global edge network, Fastest performance
 - **AWS Amplify**: AWS integration, Full-stack deployment
 
-**Environment variables**: See [Security > Sensitive Data Protection](#security)
+**Environment variables**: See [Sensitive Data Protection](#sensitive-data-protection)
 
-**Deployment checklist**:
-- Build optimization: `npm run build`
-- Environment variables: Set in platform dashboard
-- Custom domain: Configure DNS
-- HTTPS: Automatic (all platforms)
-- Preview deployments: Per PR/branch
+**Code-side deployment requirements**:
+- Build passes with zero type/lint errors and within budget (see [Post-Edit Mandatory Checks](#post-edit-mandatory-checks))
+- Client-exposed env vars use the framework's public prefix (`VITE_`/`NEXT_PUBLIC_`); secrets never carry it
+- No hardcoded origins — read API URLs from env vars so preview/production differ by config only
 
-## Optimization Examples
+Platform-side setup (dashboard env vars, DNS, HTTPS, preview deploys) is a human operation, not a code change.
 
-### Bundle Size Reduction
-
-```tsx
-// Before: 800KB bundle (lodash 500KB)
-import _ from 'lodash';
-_.debounce(fn, 100);
-
-// After: 200KB bundle (-75%)
-import debounce from 'lodash-es/debounce';
-debounce(fn, 100);
-```
-
-Code splitting patterns: see [Performance Optimization Patterns](#performance-optimization-patterns)
-
-### Core Web Vitals Improvement
-
-**Problem**: LCP 4.5s, INP 150ms
-
-**Solution**:
-- WebP images + lazy loading
-- Critical CSS inline
-- React.lazy for non-critical components
-
-**Result**: LCP 1.1s, INP 45ms, Lighthouse 95/100
-
-### XSS Prevention
-
-```tsx
-// Dangerous
-<div dangerouslySetInnerHTML={{ __html: userInput }} />
-
-// Safe (React auto-escape)
-<div>{userInput}</div>
-
-// Safe (Markdown with DOMPurify)
-import DOMPurify from 'dompurify';
-import marked from 'marked';
-
-const html = marked(markdown);
-const clean = DOMPurify.sanitize(html);
-<div dangerouslySetInnerHTML={{ __html: clean }} />
-```
-
-## Performance Optimization Patterns
+## [REFERENCE] Performance Optimization Patterns
 
 ### React Runtime Performance
 
@@ -714,19 +711,7 @@ import { FixedSizeList } from 'react-window';
 </FixedSizeList>
 ```
 
-**Code splitting strategies**:
-
-```tsx
-// Route-based splitting
-const Dashboard = lazy(() => import('./Dashboard'));
-const Settings = lazy(() => import('./Settings'));
-
-// Component-based splitting (heavy components)
-const Chart = lazy(() => import('./Chart'));
-
-// Vendor bundle separation (webpack/vite config)
-// splitChunks: { chunks: 'all', cacheGroups: { vendor: ... } }
-```
+**Code splitting**: see [Bundle Optimization Strategies](#bundle-optimization-strategies)
 
 ### Bundle Optimization Strategies
 
@@ -747,20 +732,36 @@ import { formatDate, parseDate } from './utils';
 }
 ```
 
+**Deep imports for non-tree-shakeable packages**:
+
+```tsx
+// Before: 800KB bundle (lodash 500KB — CJS, not tree-shakeable)
+import _ from 'lodash';
+_.debounce(fn, 100);
+
+// After: 200KB bundle (-75%)
+import debounce from 'lodash-es/debounce';
+debounce(fn, 100);
+```
+
 **Dynamic imports for code splitting**:
 
 ```tsx
-// Route-based
-const routes = [
-  { path: '/', component: lazy(() => import('./Home')) },
-  { path: '/about', component: lazy(() => import('./About')) },
-];
+// Route-based (largest win — split at the router)
+const Dashboard = lazy(() => import('./Dashboard'));
+const Settings = lazy(() => import('./Settings'));
 
-// Feature-based
+// Component-based (heavy, below-the-fold components)
+const Chart = lazy(() => import('./Chart'));
+
+// Feature-based (conditional)
 if (user.isPremium) {
   const PremiumFeature = await import('./PremiumFeature');
   render(<PremiumFeature.default />);
 }
+
+// Vendor bundle separation (webpack/vite config)
+// splitChunks: { chunks: 'all', cacheGroups: { vendor: ... } }
 ```
 
 **Asset optimization**:
@@ -893,12 +894,9 @@ import useSWR from 'swr';
 const { data } = useSWR(`/api/user/${id}`, fetcher);
 ```
 
-**Lazy loading and progressive loading**:
+**Lazy loading and progressive loading** (image formats and sizing: see [Image Optimization](#image-optimization)):
 
 ```tsx
-// Image lazy loading (native)
-<img src="image.jpg" loading="lazy" />
-
 // Component lazy loading
 const HeavyComponent = lazy(() => import('./Heavy'));
 
@@ -926,16 +924,12 @@ const users = await fetch(`/api/users?ids=${ids.join(',')}`);
 
 ### Performance Testing and Monitoring
 
-**Measurement tools**:
+**Measurement tools** (bundle analysis commands: see [Bundle Size Standards](#bundle-size-standards)):
 
 ```bash
-# Build analysis
-npm run build
-npx vite-bundle-visualizer  # or webpack-bundle-analyzer
-
 # Lighthouse CI (performance regression detection)
 npm install -g @lhci/cli
-lhci autorun --config=lighthouserc.json
+lhci autorun --config=lighthouserc.json  # budgets.json referenced from lighthouserc.json
 ```
 
 **Core Web Vitals** (production, web-vitals v4+ — `get*` functions were removed, use `on*`):
@@ -943,12 +937,14 @@ lhci autorun --config=lighthouserc.json
 import { onCLS, onINP, onLCP } from 'web-vitals';
 
 onCLS(console.log);
-onINP(console.log);  // INP replaced FID in March 2024
+onINP(console.log);
 onLCP(console.log);
 // Send to analytics endpoint
 ```
 
 **Performance budgets**:
+
+Budgets MUST mirror [Bundle Size Standards](#bundle-size-standards) — Lighthouse `resourceSizes` are transfer sizes (KiB), so use the gzip column.
 
 ```json
 // budgets.json (Lighthouse CI)
@@ -956,12 +952,12 @@ onLCP(console.log);
   {
     "path": "/*",
     "resourceSizes": [
-      { "resourceType": "script", "budget": 250 },
-      { "resourceType": "stylesheet", "budget": 50 },
-      { "resourceType": "total", "budget": 400 }
+      { "resourceType": "script", "budget": 130 },
+      { "resourceType": "stylesheet", "budget": 25 },
+      { "resourceType": "total", "budget": 200 }
     ],
     "timings": [
-      { "metric": "first-contentful-paint", "budget": 1500 },
+      { "metric": "first-contentful-paint", "budget": 1000 },
       { "metric": "largest-contentful-paint", "budget": 2500 },
       { "metric": "total-blocking-time", "budget": 300 }
     ]
@@ -981,4 +977,4 @@ Note: `interactive` (TTI) was removed in Lighthouse 10 — use `total-blocking-t
 - **Obsolescence Risk**: High (frontend ecosystem evolves rapidly)
 - **Related Docs**: `~/.claude/rules/tech-stacks/css-coding-standards.md`, `~/.claude/rules/tech-stacks/vue-nuxt.md`
 - **Target**: Claude Code AI assistant
-- **Last Updated**: 2026-07-07
+- **Last Updated**: 2026-08-31
