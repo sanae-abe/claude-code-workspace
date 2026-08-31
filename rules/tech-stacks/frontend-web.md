@@ -425,23 +425,43 @@ npx vite-bundle-visualizer  # or webpack-bundle-analyzer
 
 ### CSS Coding Standards
 
-**Full CSS convention**: [css-coding-standards.md](./css-coding-standards.md) — authoritative source; the summary below is a pointer, not a substitute.
+**Authoritative source**: [css-coding-standards.md](./css-coding-standards.md) (13 chapters). The index below is not a substitute — read the source chapter before writing CSS.
 
-**Key rules**:
-- Wrap `:hover` in `@media (any-hover: hover)` (touch devices)
-- `:focus-visible` styles required (accessibility)
-- Respect `prefers-reduced-motion` (vestibular disorders, epilepsy)
-- CSS variables required for design tokens, always with a fallback value
-- `rem` units preferred (respects user font-size settings)
-- `transition: all` forbidden (specify individual properties)
-- `outline: none` strictly forbidden (accessibility violation)
+**Which chapters apply**:
 
-**Naming convention**:
-- State: `is-active`, `is-disabled` (`is-` prefix)
-- Condition: `has-icon`, `has-image` (`has-` prefix)
-- Utility: `u-pc-only`, `u-sp-only` (`u-` prefix)
-- Vue components: `ProductCard` (PascalCase)
-- BEM modifier (`--`): forbidden — migrate to `is-`/`has-` prefixes
+| Implementation style | Chapters |
+|---|---|
+| Raw CSS / CSS Modules / SFC `<style>` | All |
+| Tailwind CSS | 1, 2, 3.3, 5, 12, 13 — naming (6) and units (9) do not apply; ch.3 still governs `@apply` blocks and `tailwind.config` tokens |
+| CSS-in-JS (styled-components etc.) | All except naming (6) |
+
+**Accessibility** (ch.1-2):
+- Wrap `:hover` in `@media (any-hover: hover)` — touch devices
+- `:focus-visible` required; `outline: none` / `outline: 0` strictly forbidden
+- Respect `prefers-reduced-motion` (include `animation-iteration-count: 1`)
+- Contrast WCAG 2.2 AA: 4.5:1 text, 3:1 large text and UI boundaries
+- Tap targets: min 24×24 CSS px (2.5.8), 44×44 recommended
+- Never encode state in `background-color` alone — forced-colors mode strips it
+
+**Design tokens & dark mode** (ch.3):
+- CSS variables required for color/spacing/font-size, always with a fallback
+- Semantic names (`--primary`, `--surface`), never color-based (`--blue-500`)
+- Support all 3 theme states (explicit light / explicit dark / system); define every token on bare `:root` and switch values only
+- `color-scheme` required; `body` background set explicitly
+
+**Layout & performance** (ch.4-5, 8-9):
+- Mobile-first (`min-width`); declare `@layer` order at the top of the entry CSS
+- Logical properties (`padding-inline`, `margin-block`) for new code — RTL-safe
+- `transition: all` forbidden; `will-change` toggled via JS, never permanent
+- Reserve dimensions for lazy-loaded media (CLS); `z-index` via CSS variables only; `rem` for font-size/spacing
+
+**Naming** (ch.6):
+- Component `ProductCard` (PascalCase), child `ProductCard__imageWrapper`
+- State `is-active`, condition `has-icon`, utility `u-pc-only`
+- State/condition classes MUST be chained to a component class (`.ProductCard.is-active`) — never standalone
+- Forbidden: BEM modifier (`--`), snake_case, ID selectors
+
+**Security** (ch.12): whitelist-validate any user input reaching CSS variables or `style` attributes; SRI required for CDN CSS/fonts (Google Fonts cannot use SRI — self-host).
 
 ## [CRITICAL] Testing
 
