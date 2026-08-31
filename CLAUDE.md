@@ -8,7 +8,7 @@
 1. タスク受領 → 要件明確化質問
 2. 要件確認 → AskUserQuestionで選択肢提示
 3. 影響範囲分析 → 依存関係ファイル確認
-4. 実装計画立案 → TaskCreate活用
+4. 実装計画立案 → TodoWrite活用
 
 **不明点がある場合の対応**:
 - **曖昧指示**: AskUserQuestionで選択肢提示
@@ -20,10 +20,10 @@
 
 #### 実装フェーズのデフォルト動作原則
 
-**専用ツール優先**:
+**専用ツール優先**（ハーネス側モードの指示が最優先。衝突時はモード指示に従う）:
 - ファイル操作: Read/Edit/Write（Bash cat/sed/echo禁止）
 - 検索: Grep/Glob（Bash find/grep禁止）
-- コード編集: Serena MCP（大規模変更時、トークン効率向上）
+- コード編集: Serena MCP（対象ファイル ≥ 5 OR 総変更行数 ≥ 300、トークン効率向上）
 
 **並列実行の最大化**:
 - 独立タスク = ファイル依存関係なし、実行順序関係なし
@@ -32,7 +32,7 @@
 - 複数ファイル読み取り、独立した検索・分析は同時処理
 - 並列実行可能なagentは同時起動
 
-#### TaskCreate使用基準
+#### TodoWrite使用基準
 
 **必須（3つ以上のステップ）**:
 - 機能実装（設計→実装→テスト）
@@ -45,7 +45,7 @@
 - 単純なコマンド実行
 
 **進捗の可視化**:
-- 各ステップ完了時に即座に TaskUpdate で status 更新
+- 各ステップ完了時に即座に TodoWrite で status 更新
 - コードコメントやBash echoでの説明禁止、直接出力のみ
 
 #### ドキュメント駆動実装（tasks.yml使用時）
@@ -158,6 +158,7 @@ ELIF タスク種別 == "CLI実装・スクリプト作成・自動化ツール"
     ELIF 高パフォーマンス必須（GB単位データ、並行処理、バイナリ配布）:
         rust-pro agent
     ELIF 軽量自動化（< 50行 AND 外部入力なし）:
+        # < 20行 → 自分で実装（Shell）、20-50行 → bash-pro agent
         bash-pro agent OR 自分で実装（Shell）
     ELSE:
         python-pro agent
@@ -235,11 +236,7 @@ ELSE:  # 実装系・最適化系agent
     FOR each 期待ファイル IN 変更対象ファイルリスト:
         IF ファイルが実在しない → 検証失敗 → ユーザーに報告
 
-    # Step 4: 型チェック・動作確認（ファイル実在確認後）
-    型チェック実行 → 新規エラーあれば報告
-
-    # Step 5: code-reviewer起動（実装完了 AND 型エラーなし）
-    code-reviewer agent起動（PROACTIVE）
+    # Step 4: 「実装完了後の必須フロー」へ移行（型チェック・レビューはそこで一括実行）
 ```
 
 **Agent報告の簡潔化**:
@@ -254,9 +251,12 @@ ELSE:  # 実装系・最適化系agent
    # スキル未対応の場合: 言語標準のフォーマッター・リンターを直接実行
    # IF 失敗 → エラー報告 → 修正要求 → SKIP 以下
 
-2. code-reviewer agent起動（PROACTIVE、全実装で必須）
+2. 型チェック実行 → 新規エラーあれば報告
+   # IF 型エラーあり → 修正要求 → SKIP 以下
 
-3. IF code-reviewer が test coverage 不足を指摘:
+3. code-reviewer agent起動（PROACTIVE、全実装で必須）
+
+4. IF code-reviewer が test coverage 不足を指摘:
        test-automator agent起動
 ```
 
@@ -276,7 +276,7 @@ ELSE:  # 実装系・最適化系agent
 
 **動的言語（JavaScript, Python, Ruby等）**:
 - リンター・フォーマッター: 0件必須・統一整形
-- テストカバレッジ: 新機能の適切なカバレッジ
+- テストカバレッジ: 新規コード 80% 以上
 
 **全言語共通**:
 - 命名規則・コメント: プロジェクト内で一貫性確保
@@ -301,7 +301,7 @@ ELSE:  # 実装系・最適化系agent
 
 ```python
 IF タスク完了（以下のいずれか）:
-    - TaskList で全タスク completed
+    - TodoWrite の全タスクが completed
     - ユーザーが「完了」「done」「finish」明示
 THEN:
     Skill tool実行: `/clean-jobs --auto`
@@ -402,13 +402,8 @@ CLAUDE.mdを編集する際は以下の原則を厳守：
    - 重複する内容は統合
    - 外部ファイル参照を活用（技術スタック別設定等）
 
-### 編集時のチェックリスト
-
-- ユーザー向け情報を含んでいないか？
-- 具体的な動作指示・判断基準になっているか？
-- トークン効率を考慮した簡潔な記述か？
-- 外部ファイルへの参照で代替できないか？
-- 参照先パス・コマンドが実在するか？（ls / command -v で確認）
+5. **参照の実在性**
+   - 記載前に参照先パス・コマンドの実在を `ls` / `command -v` で確認
 
 ---
 
@@ -426,7 +421,7 @@ CLAUDE.mdを編集する際は以下の原則を厳守：
 
 ### 設定継承メカニズム
 
-**3層構造**:
+**3層構造**（下位層が上位層を上書き）:
 1. **基盤層**: `~/.claude/CLAUDE.md` (技術中立的な開発フロー・セキュリティ基準)
 2. **技術層**: `~/.claude/rules/tech-stacks/{tech-stack}.md` (技術スタック別設定)
 3. **プロジェクト層**: `project/.claude/CLAUDE.md` (プロジェクト固有設定)
@@ -459,14 +454,11 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 - **Frontmatter**: `description` を必ず記載。`allowed-tools`, `argument-hint`, `model`, `disable-model-invocation` 等はオプション（仕様は slash-command-design.md 参照）
 - **配置**: `~/.claude/skills/skill-name/` に実ファイル（ソース管理: `~/projects/claude-code-workspace/skills-official/`）
 - **参考**: `~/.claude/skills/anthropic-skills/*/SKILL.md` （公式スキル例）
-- **設計指針**: `~/.claude/rules/tech-stacks/slash-command-design.md`
+- **設計指針**: `~/.claude/rules/slash-command-design.md`
 
 ---
 
 ## 外部設定参照
-
-**品質検証・セキュリティ**:
-- OWASP対応・セキュリティ基準: `~/.claude/rules/tech-stacks/{tech}.md` 各ファイル内に記載
 
 **開発補助**:
 - スキーマ定義: `~/.claude/schemas/*.json`

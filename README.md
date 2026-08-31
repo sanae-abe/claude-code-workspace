@@ -24,7 +24,8 @@ claude-code-workspace/
 │   ├── todo -> ~/.claude/skills/todo
 │   └── ... (24 skills total)
 ├── rules/                 # Development rules and standards
-│   └── tech-stacks/      # Technology stack configurations (10 stacks)
+│   ├── slash-command-design.md  # Skill / slash-command design guidelines
+│   └── tech-stacks/      # Technology stack configurations (9 stacks)
 │       ├── backend-api.md    # Backend API development settings
 │       ├── css-coding-standards.md  # CSS/SCSS coding standards
 │       ├── data-science.md   # Data science workflow settings
@@ -32,7 +33,6 @@ claude-code-workspace/
 │       ├── mobile-app.md     # Mobile app development settings
 │       ├── rust-cli.md       # Rust CLI development settings
 │       ├── shell-cli.md      # Shell scripting standards (POSIX)
-│       ├── slash-command-design.md  # Command design guidelines
 │       ├── swift-macos-ios.md  # Swift development for macOS/iOS
 │       └── vue-nuxt.md       # Vue 3 / Nuxt 3-4 development rules
 ├── CLAUDE.md             # LLM behavior configuration
@@ -68,8 +68,9 @@ git clone <this-repo-url> ~/projects/claude-code-workspace
 ln -sf ~/projects/claude-code-workspace/CLAUDE.md ~/.claude/CLAUDE.md
 ln -sf ~/projects/claude-code-workspace/settings.json ~/.claude/settings.json
 
-# Link tech stacks
+# Link rules
 mkdir -p ~/.claude/rules/tech-stacks
+ln -sf ~/projects/claude-code-workspace/rules/*.md ~/.claude/rules/
 ln -sf ~/projects/claude-code-workspace/rules/tech-stacks/*.md ~/.claude/rules/tech-stacks/
 ```
 
@@ -225,7 +226,10 @@ Available in `rules/tech-stacks/` directory:
 7. **rust-cli.md** - Rust patterns, CLI frameworks, error handling
 8. **shell-cli.md** - POSIX compliance (52 standards), security practices
 9. **css-coding-standards.md** - CSS/SCSS coding standards, accessibility, performance
-10. **slash-command-design.md** - Command design guidelines for Claude Code
+
+Not a tech stack, located at `rules/slash-command-design.md`:
+
+- **slash-command-design.md** - Skill / slash-command design guidelines for Claude Code
 
 ### Using Stack Configurations
 
@@ -286,7 +290,7 @@ last-modified: 2025-11-13
 - Skill docs: `~/.claude/skills/*/SKILL.md` (master), `skills-official/` (symlinks)
 - Skill migration guide: `SKILL_MIGRATION.md` - Directory structure details
 - Tech stack docs: `rules/tech-stacks/*.md`
-- Design guide: `rules/tech-stacks/slash-command-design.md`
+- Design guide: `rules/slash-command-design.md`
 - Decision frameworks: `~/.claude/skills/decide/frameworks.md` - ICE/RICE scoring, First Principles
 - LLM quality standards: `docs/llm-quality-framework.md`
 

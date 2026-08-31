@@ -191,7 +191,7 @@ claude-code-workspace/
 
 - Claude Code公式スキル: `~/.claude/skills/anthropic-skills/*/SKILL.md`
 - スキル仕様: https://support.claude.com/en/articles/12512198-creating-custom-skills
-- スラッシュコマンド設計: `~/.claude/rules/tech-stacks/slash-command-design.md`
+- スラッシュコマンド設計: `~/.claude/rules/slash-command-design.md`
 
 ## トラブルシューティング
 
