@@ -4,18 +4,32 @@ Guidelines for creating Claude Code skills (slash commands) optimized for LLM pa
 
 > **Note**: Custom commands (`.claude/commands/`) and skills (`.claude/skills/<name>/SKILL.md`) are equivalent. Skills are preferred: they support supporting files, richer frontmatter, and Claude auto-invocation.
 
+## Priority Levels
+
+This document marks every rule with one of three levels. Apply the same markers when writing a skill.
+
+| Marker | Meaning |
+|---|---|
+| **MUST** / **MUST NOT** | Violating breaks the skill or its security posture. Do not ship |
+| **SHOULD** / **SHOULD NOT** | The default. Deviate only with a stated reason |
+| **MAY** | Optional. Decide per skill |
+
+Unmarked prose is explanation, not a rule.
+
 ## Core Principles
 
-- Write in English
-- Minimize decorative elements
-- Use direct, imperative instructions
-- Avoid project-specific information
-- Avoid roadmaps and future plans
-- Avoid internal cross-references
+- **MUST** write in English
+- **MUST** use direct, imperative instructions
+- **MUST NOT** include project-specific information
+- **SHOULD NOT** include roadmaps or future plans
+- **SHOULD NOT** link to other skills; references to sections within the same file are fine
+- **SHOULD** minimize decorative elements
 
 ## YAML Frontmatter Format
 
 All fields are optional. Only `description` is strongly recommended.
+
+The block below is a **field catalog, not a working configuration**. Copy individual fields; never copy the block as-is. Notably `disable-model-invocation: true` together with `user-invocable: false` yields a skill that neither Claude nor the user can invoke.
 
 ```yaml
 ---
@@ -36,7 +50,20 @@ paths: ["src/**/*.ts", "tests/**"]
 ---
 ```
 
+Minimal working frontmatter — start here and add fields only when needed:
+
+```yaml
+---
+name: my-skill
+description: What this skill does and when to use it.
+---
+```
+
 ### Field Specifications
+
+**name** (recommended)
+- Must match the skill directory name — `skills/<name>/SKILL.md` — because that name is the `/` invocation name
+- If omitted, the directory name is used; state it explicitly so renames are caught in review
 
 **description** (strongly recommended)
 - What the skill does and when Claude should invoke it automatically
@@ -57,9 +84,9 @@ paths: ["src/**/*.ts", "tests/**"]
 - Hides the skill from the `/` menu
 
 **allowed-tools** (optional)
-- Grant minimum necessary tools without per-use approval
-- Use tool constraints for precision: `Bash(git *)`, `Bash(npm run *)`, `Read`
-- Review and justify each tool before finalizing
+- Grants tools without per-use approval; space-separated
+- Constraint syntax narrows a tool to matching invocations: `Bash(git *)`, `Bash(npm run *)`
+- **MUST** follow least privilege — see Tool Permission Security for the rule
 
 Common combinations:
 - Read-only: `Read Grep Glob`
@@ -127,7 +154,8 @@ cat package.json | jq '.scripts'
 ````
 
 Rules:
-- `!` must appear at line start or immediately after whitespace
+- Only the form ``!`command` `` is injected. A `!` not immediately followed by a backtick-quoted command is literal text, so shell negation (`[[ ! -f "$f" ]]`, `!=`) inside code blocks is safe
+- The `!` must appear at line start or immediately after whitespace
 - Commands run once at skill load, not re-executed on later turns
 - Output is plain text; no nested injection
 
@@ -143,7 +171,14 @@ Rules:
 | `${CLAUDE_SESSION_ID}` | Current session ID |
 | `${CLAUDE_EFFORT}` | Active effort level |
 
-Multi-word arguments require quoting: `/my-skill "hello world" second` → `$0 = "hello world"`, `$1 = "second"`
+Multi-word arguments require quoting: `/my-skill "hello world" second` → `$0` becomes `hello world`, `$1` becomes `second` (the quotes are not part of the value).
+
+**Substitution applies to the whole file, including fenced code blocks** — this is what makes `${CLAUDE_SKILL_DIR}` usable inside a `bash` block. Two consequences for skills that embed shell:
+
+- Do not rely on top-level `$1`..`$9` meaning *shell* positional parameters inside a SKILL.md code block; they collide with argument substitution. Read inputs from `$ARGUMENTS` once, or confine `$1` to the body of a shell function where it is bound by the function call (`process() { local target="$1"; ... }`)
+- Escape a literal dollar sign as `\$` when the text must survive substitution unchanged
+
+The indexing above is 0-based (`$0` = first argument), which is the opposite of the shell convention where `$0` is the command name. Verify against the current Claude Code build before depending on positional forms; `$ARGUMENTS` plus explicit parsing has no such ambiguity.
 
 ## Document Structure
 
@@ -178,6 +213,33 @@ Avoid:
 - Emoji headers
 - Related commands sections
 
+## Supporting Files
+
+Anything that is reference material rather than execution flow belongs beside `SKILL.md` in the skill directory, not inline. This is what keeps SKILL.md under the 500-line limit.
+
+```
+skills/<name>/
+  SKILL.md            # execution flow only
+  frameworks.md       # reference tables, long templates
+  report-format.md    # output templates
+  validate.py         # scripts invoked by the skill
+```
+
+Reference them through `${CLAUDE_SKILL_DIR}`, which resolves to the skill directory at load time:
+
+```markdown
+Framework definitions: `${CLAUDE_SKILL_DIR}/frameworks.md`
+```
+
+```bash
+python3 "${CLAUDE_SKILL_DIR}/validate.py" "$input_file"
+```
+
+Rules:
+- Never hardcode `~/.claude/skills/<name>/` — the skill may run from a different install path
+- Instruct when to read a supporting file (`Read frameworks.md only when the user requests a scoring model`); an unconditional read defeats the purpose of splitting it out
+- Guard script dependencies: `[[ -f "${CLAUDE_SKILL_DIR}/validate.py" ]] || { echo "ERROR: validate.py not found in skill directory"; exit 127; }`
+
 ## Invocation Control
 
 | Scenario | Configuration |
@@ -189,7 +251,7 @@ Avoid:
 
 ## Subagent Pattern
 
-Use `context: fork` instead of the `Task` tool when the entire skill is a delegated task:
+Use `context: fork` instead of the `Agent` tool when the entire skill is a delegated task:
 
 ```yaml
 ---
@@ -209,18 +271,15 @@ Research $ARGUMENTS:
 
 ### Security Risks
 
-**HIGH**: Command injection via $ARGUMENTS
-- Mitigation: Sanitize paths (reject `../`), escape before Bash execution
-
-**MEDIUM**: Path traversal, sensitive file exposure
-- Mitigation: Validate against project root, grant minimum necessary tools
-
-**LOW**: Information disclosure in error messages
-- Mitigation: Report error types only, never stack traces/absolute paths
+| Level | Risk | Mitigation |
+|---|---|---|
+| HIGH | Command injection via `$ARGUMENTS` | Input Validation |
+| MEDIUM | Path traversal, sensitive file exposure | Input Validation, Tool Permission Security |
+| LOW | Information disclosure in error messages | Error Message Security |
 
 ### Input Validation
 
-Always validate $ARGUMENTS before use:
+**MUST** validate `$ARGUMENTS` before any use:
 
 ```markdown
 ## Argument Validation
@@ -237,17 +296,17 @@ If flag not in [allowed-flags]: report error and exit
 
 ### Tool Permission Security
 
-Apply least privilege principle:
-- Use tool constraints: `Bash(git *)` not `Bash`
-- Avoid `Write` if command only reads
-- Avoid `Bash` if other tools suffice
-- Review tool list before finalizing
+Least privilege applies to every skill that grants tools:
+- **MUST** constrain Bash — `Bash(git *)`, not bare `Bash`, unless the skill genuinely runs arbitrary commands
+- **MUST NOT** grant `Write` when the skill only reads
+- **SHOULD** prefer `Read` / `Grep` / `Glob` over `Bash` when they suffice
+- **SHOULD** re-check the grant list against the finished instructions — every granted tool must actually appear in the flow
 
 ### Error Message Security
 
-Never expose in user-facing errors:
+**MUST NOT** expose in user-facing errors:
 - Stack traces
-- Absolute file paths (report filename only)
+- Absolute file paths (report the filename only)
 - Internal system details
 - Sensitive environment information
 
@@ -279,7 +338,7 @@ If invalid flag: report error with available flags
 ## Tool Usage Patterns
 
 **AskUserQuestion**: Missing/ambiguous arguments, multiple approaches, user decisions
-**Agent (subagents)**: Complex exploration, specialized analysis — or use `context: fork` in frontmatter instead
+**Agent (subagents)**: Complex exploration, specialized analysis mid-flow. If the *entire* skill is the delegated task, use frontmatter instead — see Subagent Pattern
 
 **Workflow patterns:**
 
@@ -305,7 +364,7 @@ Interactive selection:
 
 ## Error Handling
 
-Always specify error handling behavior:
+**MUST** specify error handling behavior for every failure path:
 
 ```markdown
 ## Error Handling
@@ -369,14 +428,17 @@ First parse the arguments, then validate the input, and finally execute the oper
 
 ## Quality Checklist
 
-Before finalizing:
+Before finalizing. Each item names the section holding the rule — verify there rather than relying on this list alone. **MUST** items block release; **SHOULD** items need a stated reason to skip.
 
-- `description` written so Claude matches natural language requests correctly
-- Side-effect skills have `disable-model-invocation: true`
-- `allowed-tools` uses constraint syntax (`Bash(git *)`) not broad grants
-- `$ARGUMENTS` validation and error handling specified
-- Security considerations applied (input sanitization, path validation)
-- Examples provided with concrete input/output
-- Direct, imperative English instructions
-- No emojis, TOC, version numbers, or project-specific details
-- SKILL.md under 500 lines (move reference material to supporting files)
+| Level | Check | Rule section |
+|---|---|---|
+| MUST | `description` matches the natural language requests that should trigger the skill | Field Specifications |
+| MUST | Side-effect skills set `disable-model-invocation: true` | Invocation Control |
+| MUST | Granted tools follow least privilege | Tool Permission Security |
+| MUST | `$ARGUMENTS` validated before use | Input Validation |
+| MUST | Every failure path has defined behavior | Error Handling |
+| MUST NOT | Errors leak stack traces, absolute paths, or internal details | Error Message Security |
+| MUST | Instructions are direct, imperative English | Core Principles, Writing Style |
+| SHOULD | Examples cover normal, interactive, and error cases | Examples |
+| SHOULD | SKILL.md stays under 500 lines | Supporting Files |
+| SHOULD NOT | Emojis, TOC, version numbers, or project-specific details | Core Principles, Document Structure |
