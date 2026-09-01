@@ -2,7 +2,7 @@
 name: commit
 description: Create Conventional Commits with emoji formatting
 argument-hint: "[message] [--no-verify] [--amend]"
-allowed-tools: Bash(git *) Read AskUserQuestion
+allowed-tools: Bash(git *) AskUserQuestion
 model: sonnet
 disable-model-invocation: true
 ---
@@ -15,7 +15,8 @@ Create well-formatted commit: $ARGUMENTS
 
 1. Parse arguments from $ARGUMENTS
 2. Run pre-commit security validations
-3. If message provided: validate Conventional Commits format and add emoji
+3. If message provided: validate Conventional Commits format, then prepend the type emoji
+   (skip prepending if the message already starts with the correct emoji)
 4. If no message: use AskUserQuestion to select commit type and scope
 5. Generate commit message with appropriate emoji
 6. Execute git commit with generated message
@@ -23,9 +24,9 @@ Create well-formatted commit: $ARGUMENTS
 
 ## Pre-commit Validations
 
-Execute these checks before any commit operation:
+Execute these checks before any commit operation.
 
-**Branch protection**: Run `git rev-parse --abbrev-ref HEAD`. If branch matches `main` or `master`, report error and exit.
+**Branch protection**: Run `git rev-parse --abbrev-ref HEAD`. If branch matches `main` or `master`, report error and stop. There is no override — this is a hard policy.
 
 ```
 ERROR: Direct commits to 'main' are not allowed.
@@ -35,13 +36,13 @@ Create a feature branch:
   git checkout -b feature/your-feature-name
 ```
 
-**Staged files check**: Run `git diff --cached --name-only`. If output is empty, report error and exit.
+**Staged files check**: Skip this check when `--amend` is present in $ARGUMENTS — amending a message is valid with an empty index. Otherwise run `git diff --cached --name-only`; if output is empty, report error and stop.
 
 ```
 ERROR: No staged files. Use 'git add' to stage changes first.
 ```
 
-**Sensitive file detection**: Check each staged file against these patterns: `.env`, `.envrc`, `.env.*`, `credentials.*`, `secrets.*`, `*.pem`, `*.key`, `id_rsa`, `.ssh/*`. If matched, report error and exit.
+**Sensitive file detection**: Check each staged file against these patterns: `.env`, `.envrc`, `.env.*`, `credentials.*`, `secrets.*`, `*.pem`, `*.key`, `id_rsa`, `.ssh/*`. If matched, report error and stop.
 
 ```
 ERROR: Sensitive file detected: <filename>
@@ -51,35 +52,36 @@ Resolution:
   3. Use environment variables instead
 ```
 
-**Message injection check** (if message provided): Reject messages containing backticks, `$`, or `(` characters. Report "Dangerous characters detected in commit message" and exit.
+**Message injection prevention**: Never interpolate the message into a double-quoted shell string. Always commit through a single-quoted heredoc (see Git Commit Execution) — under that form backticks, `$`, and `(` are literal and safe, so do not reject them. Reject only a message containing a line equal to `COMMIT_MSG`, which would terminate the heredoc early.
 
-**Secret pattern check** (if message provided): If message matches `(api[_-]?key|password|secret|token|bearer|auth).{0,10}[=:].{8,}`, warn the user and use AskUserQuestion to confirm before continuing.
+```
+ERROR: Commit message contains the heredoc delimiter on its own line.
+Fix: rewrite the message without a line consisting solely of COMMIT_MSG.
+```
 
-**GPG signature check**: If `git config commit.gpgsign` returns `true`, verify `git config user.signingkey` is set. If missing, report error.
+**Secret pattern check**: Apply to the final message on both paths — the argument-supplied message and the subject collected via AskUserQuestion. If it matches `(api[_-]?key|password|secret|token|bearer|auth).{0,10}[=:].{8,}`, warn the user and use AskUserQuestion to confirm before continuing.
+
+**GPG signature check**: If `git config commit.gpgsign` returns `true`, verify `git config user.signingkey` is set. If missing, report error and stop.
 
 ```
 ERROR: GPG signing enabled but no signing key configured.
 Fix: git config user.signingkey YOUR_KEY_ID
 ```
 
-**Pre-commit hook failure**: If `git commit` exits non-zero due to a hook, identify likely cause from staged file extensions and suggest fix commands (e.g. `npm run type-check` for `.ts` files, `npm run lint:fix` for `.js/.ts` files).
+**Pre-commit hook failure**: If `git commit` exits non-zero due to a hook, identify likely cause from staged file extensions and suggest fix commands (e.g. `npm run type-check` for `.ts` files, `npm run lint:fix` for `.js/.ts` files). Name the failing files from the hook output when it reports them.
 
 ## Argument Validation
 
 Parse $ARGUMENTS:
-- Extract message if provided (first token before flags)
-- Detect flags: `--no-verify`, `--amend`
+- Flags: `--no-verify`, `--amend`. Recognize them anywhere in the argument list.
+- Message: everything that is not a flag. A quoted argument is one message even when it
+  contains spaces; unquoted words are joined with single spaces. Empty means interactive mode.
 
-If message provided:
-- Check Conventional Commits format: `type(scope): subject`
-- Validate type against allowed list
-- Ensure subject length under 72 characters
-
-If validation fails: report error with correct format and examples.
+If a message is present, validate it against the rules in Message Generation. If validation fails: report error with the correct format and an example, and stop.
 
 ## Commit Type Selection
 
-Use AskUserQuestion in two steps (max 4 options per question).
+Use AskUserQuestion (max 4 options per question). Step 2 is one of two mutually exclusive questions, chosen by the Step 1 answer.
 
 **Step 1: Select primary category**
 
@@ -88,10 +90,18 @@ Header: "Type"
 Options:
 1. feat ✨ - New feature (user-facing functionality)
 2. fix 🐛 - Bug fix (user-facing issue resolution)
-3. refactor ♻️ - Refactoring / performance / style changes
-4. other 📦 - Documentation, tests, config, build
+3. refactor ♻️ - Internal change with no behavior change (restructuring or optimization)
+4. other 📦 - Documentation, tests, config, build, formatting
 
-**Step 2 (only if "other" selected):**
+**Step 2a (only if "refactor" selected):**
+
+Question: "Select detail type"
+Header: "Detail"
+Options:
+1. refactor ♻️ - Restructuring only, no measurable performance goal
+2. perf ⚡️ - Speed or resource optimization
+
+**Step 2b (only if "other" selected):**
 
 Question: "Select detail type"
 Header: "Detail"
@@ -99,34 +109,48 @@ Options:
 1. docs 📝 - Documentation changes only
 2. test ✅ - Add or modify tests
 3. chore 🔧 - Build, configuration, dependency updates
-4. style 💄 - Code style / formatting changes
+4. style 💄 - Formatting only, no logic change
 
-Type-to-emoji mapping:
-- feat: ✨, fix: 🐛, refactor: ♻️, docs: 📝, style: 💄, test: ✅, chore: 🔧, perf: ⚡️
+Type-to-emoji mapping (single source of truth for both the allowed type list and the emoji):
+
+| type | emoji |
+|---|---|
+| feat | ✨ |
+| fix | 🐛 |
+| refactor | ♻️ |
+| perf | ⚡️ |
+| docs | 📝 |
+| style | 💄 |
+| test | ✅ |
+| chore | 🔧 |
 
 ## Scope Selection
 
-Run `git diff --cached --name-only` and infer the most likely scope from file paths before asking. Pre-select the most relevant option in the question.
+Run `git diff --cached --name-only` and infer the most likely scope from the file paths.
+
+Build exactly 4 options in this order:
+1. The inferred scope, labeled `<scope> (Recommended)` — omit this entry if inference is inconclusive
+2. Fill the remaining slots from `ui`, `api`, `core` in that order, skipping the one already used in slot 1
+3. Always place `none` last
 
 Question: "Select scope (area of change)"
 Header: "Scope"
-Options:
-1. ui - UI components, styling changes
-2. api - API, backend, data layer changes
-3. core - Core logic, business logic changes
-4. none - No specific scope (multiple areas or global)
+Option descriptions:
+- ui - UI components, styling changes
+- api - API, backend, data layer changes
+- core - Core logic, business logic changes
+- none - No specific scope (multiple areas or global)
+- Any inferred scope - the directory or package the staged files belong to
 
 ## Message Generation
 
-Based on selected type and scope:
+Format: `<emoji> <type>(<scope>): <subject>`, or `<emoji> <type>: <subject>` when scope is `none`.
 
-1. Retrieve emoji for type
-2. Format message: `<emoji> <type>(<scope>): <subject>`
-   - If scope is "none": `<emoji> <type>: <subject>`
-3. Validate format:
-   - Subject starts with lowercase (except proper nouns)
-   - Subject length under 72 characters
-   - No period at end of subject
+Validation rules (apply to both the interactive and argument-supplied paths):
+- Type is present in the Type-to-emoji mapping table
+- Subject starts with lowercase, except proper nouns
+- Subject is under 72 characters
+- Subject has no trailing period
 
 Example generated messages:
 - `✨ feat(ui): add user profile editor`
@@ -136,24 +160,30 @@ Example generated messages:
 
 ## Git Commit Execution
 
-Execute: `git commit -m "<generated-message>"`
+Commit through a single-quoted heredoc so the message is never subject to shell expansion:
+
+```bash
+git commit -F - <<'COMMIT_MSG'
+<generated-message>
+COMMIT_MSG
+```
 
 Flags:
 - If `--no-verify` in $ARGUMENTS: add `--no-verify` to skip pre-commit hooks
 - If `--amend` in $ARGUMENTS: add `--amend` to amend last commit
 
-After commit: verify with `git log -1 --oneline` and report hash and message.
+After commit: run `git show --stat --oneline HEAD` and report the hash, the message, and the file/insertion/deletion counts taken from that output. Do not report counts that the command did not produce.
 
 ## Error Handling
 
-Argument errors:
+Argument errors — see Message Generation for the rules being enforced:
 - Invalid format: report "Conventional Commits format required: type(scope): subject"
-- Unknown type: report "Allowed types: feat, fix, refactor, docs, style, test, chore, perf"
+- Unknown type: report "Allowed types: see the Type-to-emoji mapping table"
 - Subject too long: report "Subject must be under 72 characters, got: [length]"
 
 Execution errors:
-- No staged files: report "No staged files. Use 'git add' to stage changes first"
-- git commit fails: report git error message and suggest resolution
+- Pre-commit validation failures: use the messages defined in Pre-commit Validations
+- git commit fails: report the git error message and suggest a resolution
 
 Security:
 - Never expose absolute file paths in error messages
@@ -165,6 +195,8 @@ Security:
 ```
 /commit "feat(ui): add user profile component" → Execute commit with "✨ feat(ui): add user profile component"
 /commit → Interactive mode, use AskUserQuestion to select type and scope
+/commit --amend → Amend the last commit; the staged files check is skipped
+/commit "fix(api): retry on timeout" --no-verify → Commit while skipping pre-commit hooks
 /commit "update docs" → Report error "Conventional Commits format required: type(scope): subject"
 ```
 
