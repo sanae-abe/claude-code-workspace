@@ -1,6 +1,7 @@
 ---
 name: clean-jobs
 description: Safe cleanup of background jobs created in the current Claude Code session. Use when development tasks complete, or to stop dev servers and watch processes.
+disable-model-invocation: true
 ---
 
 

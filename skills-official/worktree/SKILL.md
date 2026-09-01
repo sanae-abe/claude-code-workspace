@@ -4,6 +4,7 @@ description: Git worktree management for parallel development workflows
 argument-hint: "[create|list|switch|merge|delete|status] [branch-name]"
 allowed-tools: Bash(git *) Read Write Edit Grep Glob TodoWrite AskUserQuestion
 model: sonnet
+disable-model-invocation: true
 ---
 
 

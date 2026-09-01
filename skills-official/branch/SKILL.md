@@ -3,6 +3,7 @@ name: branch
 description: Create Git branch following Conventional Branch naming rules
 argument-hint: "[type] [description]"
 allowed-tools: Bash(git *) AskUserQuestion
+disable-model-invocation: true
 ---
 
 # Branch Creation Command

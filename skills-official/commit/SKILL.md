@@ -4,6 +4,7 @@ description: Create Conventional Commits with emoji formatting
 argument-hint: "[message] [--no-verify] [--amend]"
 allowed-tools: Bash(git *) Read AskUserQuestion
 model: sonnet
+disable-model-invocation: true
 ---
 
 # Git Commit Command

@@ -1,6 +1,7 @@
 ---
 name: deploy-customizearea-prod
 description: 本番環境のcustomizearea_update_productionジョブを実行し、結果を表示する
+disable-model-invocation: true
 ---
 
 # Deploy Customizearea Production

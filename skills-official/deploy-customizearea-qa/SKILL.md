@@ -1,6 +1,7 @@
 ---
 name: deploy-customizearea-qa
 description: QA環境のcustomizearea_update_qa_gitジョブを実行し、結果を表示する
+disable-model-invocation: true
 ---
 
 # Deploy Customizearea QA
