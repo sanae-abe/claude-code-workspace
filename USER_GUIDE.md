@@ -163,7 +163,6 @@ code .claude/CLAUDE.md
 |---------|------|
 | `/todo [action] [description] \| add \| complete \| list \| sync \| project \| interactive` | Simple project task management with interactive UI and priority handling |
 | `/plan-review <task-name> [--perspectives=security,performance,maintainability] [--rounds=2] [--format=detailed\|compact]` | Create implementation plan, review with iterative-review, update todo.md |
-| `/task-validate [--scope=all\|lint\|test\|build] [--report-only] [--auto-proceed]` | Validate previous task completion, check quality, suggest next action |
 | `/iterative-review <target> [--rounds=4] [--perspectives=necessity,security,performance,maintainability] [--skip-necessity]` | Multi-perspective review analyzing necessity, security, performance, and maintainability |
 
 ### 研究・学習
@@ -263,8 +262,8 @@ cldev lr problems
 # 2. 修正
 /fix 認証トークンの検証ロジック
 
-# 3. テスト
-/task-validate --scope=test
+# 3. 検証
+/validate --layers=all
 
 # 4. コミット・PR
 /commit
