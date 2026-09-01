@@ -1,11 +1,10 @@
 ---
 name: todo
 description: Personal task list management via todo.md. Add, complete, remove, and list tasks with priorities, due dates, and tags. Use when user wants to manage their todo list, add tasks, mark tasks as done, or track personal action items.
-argument-hint: "[action] [description] | add | complete | uncomplete | remove | list | sync | next | interactive"
-allowed-tools: Read Write Edit Bash AskUserQuestion Grep Glob
+argument-hint: "add \"<text>\" [--priority=] [--tags=] [--due=] | list [--filter=] [--sort=] | complete <N> | uncomplete <N> | remove <N> | next | sync"
+allowed-tools: Read Write Edit Grep AskUserQuestion Bash(python3 *)
 model: sonnet
 ---
-
 
 # Todo Manager
 
@@ -28,398 +27,302 @@ Lightweight task management for ad-hoc, document-free tasks that don't require f
 
 **Key difference**: /todo manages todo.md (personal, flexible), /implement manages tasks.yml (project-wide, structured).
 
-## Implementation Guide
+## Execution Flow
 
-### Execution Flow
-
-1. Check dependencies: verify `python3` is available and `todo_validation.py` exists in skill directory
-2. Parse arguments from $ARGUMENTS
-3. Validate and sanitize input (security check using todo_validation.py)
-4. Locate or create todo.md file in project root
-4a. If todo.md exists, check file size (>1MB: report size limit error, exit EXIT_FILE_TOO_LARGE)
-5. Determine action: add, complete, uncomplete, remove, list, sync, next, or interactive mode
-6. Execute requested action (see Commands section)
-7. Update todo.md file if modifications made
-8. Display results to user
+1. Parse $ARGUMENTS into action, description, and options — see Argument Parsing
+2. Validate every user-supplied value — see Input Validation
+3. Locate todo.md in the project root; if absent, create it with the Write tool and an empty task list
+4. If todo.md exists and exceeds 1MB, stop and report the size limit — see Error Handling
+5. Execute the action — see Actions
+6. Report the result to the user in the format shown in Examples
 
 **Special cases**:
-- $ARGUMENTS empty: use AskUserQuestion for interactive mode
-- todo.md not found: create new file with empty task list
-- Validation fails: report error and exit
-- Dependency check fails: report missing dependency and exit with code 127
+- $ARGUMENTS empty: enter interactive mode — see Interactive Mode
+- Any validation failure: stop before step 3; never write a partially validated task
 
-**Dependency check (run before any action)**:
+### Dependencies
+
+No separate probe step: the first `python3` call of the flow reports a missing dependency itself, and every action that touches user input makes one before writing anything.
+
+| Failure text from the call | Missing |
+|---|---|
+| `command not found: python3` | python3 |
+| `can't open file '.../todo_validation.py'` | the skill's validation module |
+| `can't open file '.../todo_sync.py'` | sync script (sync action only) |
+| `can't open file '.../todo_next.py'` | next script (next action only) |
+
+Treat any of these as a stop-and-report dependency failure — see Error Handling. Report the module name only, never the resolved path.
+
+## Argument Parsing
+
+Parse $ARGUMENTS yourself; do not pass it to a shell command. Extract:
+
+| Element | Source | Notes |
+|---|---|---|
+| Action | first token | see the alias table below |
+| Description | quoted string | `add` only |
+| Task number | integer | `complete`, `uncomplete`, `remove`; 1-based list position |
+| Options | `--key=value` | `--priority`, `--tags`, `--due`, `--filter`, `--sort` |
+
+**Actions and aliases** (an unlisted first token is an invalid-action error):
+
+| Action | Aliases |
+|---|---|
+| add | — |
+| complete | done |
+| uncomplete | — |
+| remove | delete |
+| list | — |
+| next | — |
+| sync | — |
+| interactive | (also entered when $ARGUMENTS is empty) |
+
+Options always use `--key=value`. Space-separated forms (`--tags security urgent`) are not supported: reject them with the usage line for that action.
+
+## Input Validation
+
+**MUST**: every user-supplied value reaches `todo_validation.py` before it is written anywhere. Never interpolate `$ARGUMENTS`, a description, a tag, or a task number into a shell command — argument substitution applies inside fenced code blocks, so a description containing a quote would break out of the command and run as shell code.
+
+The only supported channel is a **quoted heredoc** (`<<'TODO_JSON'`), which suppresses all shell expansion:
+
 ```bash
-command -v python3 &>/dev/null || { echo "ERROR: python3 is required but not found"; exit 127; }
-[[ -f "${CLAUDE_SKILL_DIR}/todo_validation.py" ]] || { echo "ERROR: todo_validation.py not found in skill directory"; exit 127; }
-# For sync/next actions only (scripts live in ~/.claude/utils/, separate from skill dir)
-[[ "$ACTION" == "sync" ]] && { [[ -f "$HOME/.claude/utils/todo_sync.py" ]] || { echo "ERROR: todo_sync.py not found"; exit 127; }; }
-[[ "$ACTION" == "next" ]] && { [[ -f "$HOME/.claude/utils/todo_next.py" ]] || { echo "ERROR: todo_next.py not found"; exit 127; }; }
+python3 "${CLAUDE_SKILL_DIR}/todo_validation.py" - <<'TODO_JSON'
+{"action":"add","description":"Fix authentication bug","priority":"high","tags":"security,urgent,api","due":"tomorrow"}
+TODO_JSON
 ```
 
-### Argument Parsing
+Rules for building the request:
+- Emit the JSON as a **single line** with the description JSON-escaped, so no body line can collide with the `TODO_JSON` delimiter
+- Use the delimiter `TODO_JSON` verbatim, always single-quoted
+- Malformed JSON exits non-zero with an error — treat that as a validation failure, never as a reason to fall back to shell string building
 
-Parse $ARGUMENTS to extract:
-- Action: first token (add, complete, uncomplete, remove, list, sync, next, interactive)
-- Task description: quoted string for add action
-- Task number: integer for complete, uncomplete, remove actions
-- Options: --priority, --tags, --due, --filter, --sort
+Request schema by action:
 
-### Input Validation
+| Action field | Other fields |
+|---|---|
+| `add` | `description` (required), `priority`, `tags`, `due` |
+| `complete` / `uncomplete` / `remove` | `index` (required) |
+| `filter` | `priority`, `tag`, `sort` (for `list`) |
 
-**All inputs must pass validation using todo_validation.py**:
+On success the script prints one JSON object to stdout; use its values, not the raw input. For `add`, `task_line` is the finished todo.md line — write it verbatim.
 
-```python
-import sys
-sys.path.insert(0, '${CLAUDE_SKILL_DIR}')
-from todo_validation import validate_path, sanitize_input, validate_task_id
+Validation rules are defined once, in `todo_validation.py`:
 
-safe_path = validate_path(path)         # Rejects ../, validates within project, denies .git
-safe_text = sanitize_input(description) # Unicode normalize, limit 4KB bytes, 1000 chars
-task_id = validate_task_id(id_str)      # Must match task-\d+ pattern
-```
+| Value | Rule | Function |
+|---|---|---|
+| Description | NFKC normalized, control chars collapsed, max 4KB / 1000 chars, `\|` rejected | `validate_description()` |
+| Priority | `critical` \| `high` \| `medium` \| `low`, default `medium` | `validate_priority()` |
+| Tags | comma-separated canonical; alphanumeric, underscore, hyphen; max 32 chars each | `parse_tags()` / `validate_tags()` |
+| Due date | `YYYY-MM-DD`, `today`, `tomorrow`, `next week`, `in N days` | `validate_due()` |
+| Task number | positive integer (todo.md list position) | `validate_task_index()` |
+| tasks.yml task ID | `task-N` — used by sync/next only, never by complete/remove | `validate_task_id()` |
+| File path | inside project root, `.git` denied | `validate_path()` |
 
-Validation rules:
-- File paths: reject ../, validate within project root, deny .git access
-- Task descriptions: Unicode normalize (NFKC), limit 4KB bytes, 1000 chars max
-- Task IDs: must match task-\d+ pattern
-- Priority: must be critical|high|medium|low
-- Tags: alphanumeric, underscore, hyphen only; max 32 chars per tag
+## Tool Usage
 
-### Tool Usage
+**Read / Write / Edit**: todo.md operations. Write creates the file; Edit applies every subsequent change.
+
+**Grep**: locate a task line by text before editing, and count matches to detect duplicates.
+
+**Bash**: only `python3` invocations (validation and the sync/next scripts). No shell string building, no `date` — dates come from `todo_validation.py`.
+
+**AskUserQuestion**: interactive mode, and the /implement confirmation in the `next` action.
 
 **Note**: TodoWrite/TodoRead are Claude Code's built-in session task tools — they manage in-session checklists, NOT todo.md. Do not use them for persistent todo.md operations.
 
-**AskUserQuestion**: Use in interactive mode when $ARGUMENTS empty
-- Primary action selection: add-task, review-list, quick-complete
-- Task priority selection: critical, high, medium, low
-- Task tags input: free-form text (e.g., "security urgent api")
+## File Format
 
-**Bash**: Use for date parsing and executing Python validation scripts
-
-**Read/Write/Edit**: todo.md file operations
-
-**Grep**: Search for specific tasks or patterns
-
-## Commands
-
-### File Format
-
-todo.md uses markdown checklist with metadata:
+todo.md uses a markdown checklist with inline metadata:
 
 ```markdown
-- [ ] Fix auth bug | Priority: high | Due: 2025-01-16 | Created: 2025-01-15 #security #urgent
-- [x] Update README | Priority: medium | Created: 2025-01-14 | Completed: 2025-01-15 #docs
+- [ ] Fix auth bug | Priority: high | Due: 2026-09-02 | Created: 2026-09-01 #security #urgent
+- [x] Update README | Priority: medium | Created: 2026-08-30 | Completed: 2026-09-01 #docs
 ```
 
-**Field specification**:
-- Priority: critical, high, medium, low (required)
-- Due: YYYY-MM-DD (optional)
-- Created: YYYY-MM-DD (auto-generated, required)
-- Completed: YYYY-MM-DD (auto-generated on completion, completed tasks only)
-- Tags: #tag1 #tag2 ... (optional, free-form, alphanumeric + underscore + hyphen)
+Field order is fixed: description, `Priority`, `Due`, `Created`, `Completed`, tags.
 
-### Actions
+| Field | Format | Required |
+|---|---|---|
+| Priority | critical/high/medium/low | yes |
+| Due | YYYY-MM-DD | optional |
+| Created | YYYY-MM-DD (auto) | yes |
+| Completed | YYYY-MM-DD (auto) | completed tasks only |
+| Tags | `#tag1 #tag2` (trailing) | optional |
 
-**Exit code constants must be defined at script start before any action logic** (see Error Handling section for values).
+## Actions
 
-**LLM implements all actions directly (no Python delegation except sync/next)**:
+Task numbers are 1-based positions in the rendered `list` output, counting task lines only.
 
-add "description" [options]:
-- **LLM**: Parse description from quoted string
-- **LLM**: Validate with `sanitize_input()` from todo_validation.py
-- **LLM**: Extract --priority, --tags, --due options
-- **LLM**: Auto-generate Created field (current date)
-- **LLM**: Append new task to todo.md using Edit tool
-- Default: priority=medium, tags=none, due=none
+**add "description" [options]**
+1. Validate via the heredoc request (`action: "add"`)
+2. Append the returned `task_line` to todo.md with Edit
+3. Report the added line
 
-**Tag format**: Use `--tags=security,urgent,api` (comma-separated, no spaces) to avoid shell word-splitting issues.
+**complete N | done N**
+1. Validate via the heredoc request (`action: "complete"`) to get `index` and today's date
+2. Read todo.md, resolve position `index` to a task line; if it does not exist, stop and report the valid range
+3. Edit that line: `- [ ]` → `- [x]`, and insert ` | Completed: <date>` directly after the `Created` field
+4. Report the updated line
 
-**Bash implementation example**:
-```bash
-# Exit code constants must be defined first (see Error Handling section)
-readonly EXIT_SUCCESS=0
-readonly EXIT_USER_ERROR=1
-readonly EXIT_SECURITY_ERROR=2
-readonly EXIT_FILE_TOO_LARGE=3
-readonly EXIT_UNRECOVERABLE=4
+**uncomplete N**
+1. Validate via the heredoc request (`action: "uncomplete"`)
+2. Resolve position `index` as above
+3. Edit that line: `- [x]` → `- [ ]`, and **remove the `Completed` field** including its leading ` | `
+4. Report the updated line
 
-# Parse arguments
-DESCRIPTION=""
-PRIORITY="medium"
-TAGS=""
-DUE=""
-CREATED=$(date +%Y-%m-%d)
+**remove N | delete N**
+1. Validate via the heredoc request (`action: "remove"`)
+2. Resolve position `index` as above
+3. Delete the whole line with Edit
+4. Report the removed line so the user can re-add it if the deletion was unintended
 
-# Extract description (first quoted string)
-if [[ "$ARGUMENTS" =~ \"([^\"]+)\" ]]; then
-    DESCRIPTION="${BASH_REMATCH[1]}"
-fi
+**list [options]**
+1. Validate filters via the heredoc request (`action: "filter"`) when `--filter` or `--sort` is present
+2. Read todo.md
+3. Keep lines matching `- [ ]` or `- [x]`; number them from 1 **before** filtering, so numbers stay stable and usable with `complete`
+4. Apply the filter:
+   - `--filter=priority:high` → line contains `Priority: high`
+   - `--filter=tag:security` → line contains the tag token `#security` (exact token; `#security` must not match `#securityaudit`)
+   - `--filter=context:X` → alias for `--filter=tag:X` (backward compat)
+5. Apply `--sort`:
+   - `--sort=due` → ascending by `Due`; tasks without a due date last
+   - `--sort=priority` → critical, high, medium, low
+   - omitted → file order
+6. Render as shown in Examples
 
-# Validate description via Python (skill dir added to sys.path)
-python3 -c "
-import sys
-sys.path.insert(0, '${CLAUDE_SKILL_DIR}')
-from todo_validation import sanitize_input
-sanitize_input(sys.argv[1])
-" "$DESCRIPTION" || exit $EXIT_SECURITY_ERROR
+**next**
+1. Run `python3 "$HOME/.claude/utils/todo_next.py"`
+2. If the output contains `NEXT_TASK_ID` (a tasks.yml task), use AskUserQuestion to confirm running `/implement task-N`
+3. If confirmed, invoke `/implement task-N` via the Skill tool
+4. Otherwise display the lightweight task to the user
 
-# Extract options — use = syntax to avoid word-splitting (e.g. --tags=security,urgent)
-for arg in $ARGUMENTS; do
-    case "$arg" in
-        --priority=*) PRIORITY="${arg#*=}" ;;
-        --tags=*)     TAGS="${arg#*=}" ;;   # comma-separated: security,urgent,api
-        --due=*)      DUE="${arg#*=}" ;;
-    esac
-done
+**sync**
+1. Run `python3 "$HOME/.claude/utils/todo_sync.py"`
+2. Report how many tasks were imported, or that tasks.yml was not found
+3. Idempotent: safe to re-run; never modifies existing tasks
 
-# Build task line
-NEW_TASK="- [ ] $DESCRIPTION | Priority: $PRIORITY"
-[[ -n "$DUE" ]] && NEW_TASK="$NEW_TASK | Due: $DUE"
-NEW_TASK="$NEW_TASK | Created: $CREATED"
-# Convert comma-separated tags to hashtag format (IFS-safe, macOS/Linux compatible)
-if [[ -n "$TAGS" ]]; then
-    HASHTAGS=""
-    IFS=',' read -ra TAG_ARRAY <<< "$TAGS"
-    for tag in "${TAG_ARRAY[@]}"; do
-        HASHTAGS="$HASHTAGS #${tag// /}"   # strip any accidental spaces
-    done
-    NEW_TASK="$NEW_TASK${HASHTAGS}"
-fi
-# Use Edit tool to append NEW_TASK to todo.md
-```
+Both scripts own their own file parsing, YAML handling, and sanitization — see External Scripts.
 
-complete N | done N:
-- **LLM**: Parse task number N
-- **LLM**: Read todo.md, mark task N as completed ([x])
-- **LLM**: Add Completed field (current date) after Created field
-- **LLM**: Update todo.md using Edit tool
+## Interactive Mode
 
-**Bash implementation example**:
-```bash
-# Parse task number
-TASK_NUM=$(echo "$ARGUMENTS" | awk '{print $2}')
-COMPLETED=$(date +%Y-%m-%d)
+Entered when $ARGUMENTS is empty or the action is `interactive`.
 
-# Validate task number (integer only)
-if [[ ! "$TASK_NUM" =~ ^[0-9]+$ ]]; then
-    echo "ERROR: Invalid task number: $TASK_NUM"
-    echo "Usage: /todo complete N (where N is a positive integer)"
-    exit $EXIT_USER_ERROR
-fi
+1. AskUserQuestion — action: `add` / `list` / `complete`
+2. For `add`: ask for the description, then priority (`critical`/`high`/`medium`/`low`), then tags (free-form; comma or space separated, both accepted by `parse_tags()`)
+3. For `complete`: render `list` first so the user picks a valid number
+4. Continue into the chosen action's flow above
 
-# Read todo.md using Read tool, get line at index TASK_NUM
-# 1. Replace "- [ ]" with "- [x]"
-# 2. Insert " | Completed: $COMPLETED" after Created field
-# Update todo.md using Edit tool with old/new strings
-```
+## External Scripts
 
-list [options]:
-- **LLM**: Read todo.md file using Read tool
-- **LLM**: Display all tasks with numbers
-- **LLM**: Apply --filter if specified:
-  - `--filter=priority:high` → show only high priority tasks
-  - `--filter=tag:security` → show only tasks tagged `#security`
-  - `--filter=context:X` → alias for `--filter=tag:X` (backward compat)
-- **LLM**: Apply --sort (due, priority) if specified
-- **LLM**: Format output with task numbers
+**`${CLAUDE_SKILL_DIR}/todo_validation.py`** — all input validation and the todo.md line renderer. Functions are listed in the Input Validation table. Also exposes `safe_error_message()`, which every error path uses.
 
-**Bash implementation example**:
-```bash
-# Read todo.md content using Read tool first, then pass as heredoc
-# TODOS_CONTENT = result from Read tool on todo.md
+**`$HOME/.claude/utils/todo_sync.py`** (sync) — loads and validates tasks.yml, extracts pending tasks, reads the last 100 lines of todo.md for the max task ID, sanitizes goal text, appends new tasks. Prevents command injection with `shlex.quote` and validates task IDs against `task-\d+`.
 
-# Parse filter options — = syntax avoids word-splitting
-FILTER_PRIORITY=""
-FILTER_TAG=""
-for arg in $ARGUMENTS; do
-    case "$arg" in
-        --filter=priority:*) FILTER_PRIORITY="${arg#*priority:}" ;;
-        --filter=tag:*)      FILTER_TAG="${arg#*tag:}" ;;   # --filter=tag:security
-        --filter=context:*)  FILTER_TAG="${arg#*context:}" ;; # alias for --filter=tag:
-    esac
-done
+**`$HOME/.claude/utils/todo_next.py`** (next) — file parsing and task selection. Output:
+- tasks.yml task: `NEXT_TASK_ID:task-N / PRIORITY:X / EFFORT:Y / DESCRIPTION:...`
+- lightweight task: `Next task (lightweight): ...`
 
-# Display tasks with numbers, applying filters inline
-# Process $TODOS_CONTENT (from Read tool) rather than reading file directly
-TASK_NUM=1
-while IFS= read -r line; do
-    # Skip non-task lines
-    [[ "$line" =~ ^-\ \[.?\] ]] || continue
-    # Apply priority filter if set
-    if [[ -n "$FILTER_PRIORITY" ]] && [[ "$line" != *"Priority: $FILTER_PRIORITY"* ]]; then
-        continue
-    fi
-    # Apply tag/context filter if set (matches #tagname)
-    if [[ -n "$FILTER_TAG" ]] && [[ "$line" != *"#$FILTER_TAG"* ]]; then
-        continue
-    fi
-    echo "$TASK_NUM. $line"
-    ((TASK_NUM++))
-done <<< "$TODOS_CONTENT"
-```
-
-uncomplete N:
-- **LLM**: Parse task number N
-- **LLM**: Read todo.md, revert task N to incomplete ([ ])
-- **LLM**: Update todo.md using Edit tool
-
-remove N | delete N:
-- **LLM**: Parse task number N
-- **LLM**: Remove task N from todo.md using Edit tool
-
-next:
-- **LLM implementation**: Execute `python3 ~/.claude/utils/todo_next.py`
-- **LLM implementation**: Parse output (NEXT_TASK_ID, PRIORITY, EFFORT, DESCRIPTION)
-- **LLM implementation**: If big task (#task-N), use AskUserQuestion for /implement confirmation
-- **LLM implementation**: If confirmed, invoke `/implement task-N` via Skill tool
-- **LLM implementation**: For lightweight tasks, display to user
-- **Python script**: todo_next.py handles file parsing and task selection logic
-
-sync:
-- **LLM implementation**: Execute `python3 ~/.claude/utils/todo_sync.py`
-- **LLM implementation**: Parse script output and report results to user
-- **LLM implementation**: Handle errors (e.g., tasks.yml not found)
-- **Python script**: todo_sync.py handles YAML parsing, validation, sanitization, file I/O
-- **Note**: Idempotent (can run multiple times safely), never modifies existing tasks
-
-## External Scripts (Python)
-
-**LLM delegates to Python scripts for security-critical operations**:
-
-### sync action: todo_sync.py
-
-```bash
-python3 ~/.claude/utils/todo_sync.py
-```
-
-**Script responsibilities** (DO NOT implement in LLM):
-- Load and validate tasks.yml (YAML parsing)
-- Extract pending tasks with validation
-- O(1) optimization: read last 100 lines of todo.md for max task ID
-- Sanitize goal text + shlex.quote metadata (prevent injection)
-- Append new tasks to todo.md
-
-**Security features**:
-- Task ID validation (task-\d+ pattern)
-- Command injection prevention (shlex.quote)
-- Safe error messages (no path exposure)
-
-**LLM implementation**: Execute script, parse output, report to user
-
-### next action: todo_next.py
-
-```bash
-python3 ~/.claude/utils/todo_next.py
-```
-
-**Script outputs**:
-- Big tasks: `NEXT_TASK_ID:task-N / PRIORITY:X / EFFORT:Y / DESCRIPTION:...`
-- Lightweight tasks: `Next task (lightweight): ...`
-
-**LLM implementation**:
-1. Execute script, parse output
-2. If big task (NEXT_TASK_ID present): use AskUserQuestion for /implement confirmation
-3. If confirmed: invoke `/implement task-N` via Skill tool
-4. If lightweight task: display to user
-
-### Date parsing
-
-**LLM implementation** (Bash, not Python):
-- Detect OS date command (BSD for macOS, GNU for Linux)
-- Parse: tomorrow, next week, in N days, YYYY-MM-DD
-- Cache OS detection in environment variable
+Do not reimplement these responsibilities inline.
 
 ## Error Handling
 
-Use safe_error_message from todo_validation.py for all errors:
+Every failure stops the flow and reports to the user. There is no script for the LLM to `exit` from: a `exit` inside a Bash call ends that one command only, so failure is expressed as **stop and report**, never as a process exit code.
 
-```python
-import sys
-sys.path.insert(0, '${CLAUDE_SKILL_DIR}')
-from todo_validation import safe_error_message
+| Condition | Behaviour |
+|---|---|
+| Dependency check did not print `READY` | Stop. Report which dependency is missing and that `/todo` cannot run without it |
+| Invalid action | Stop. Report the token and list the valid actions |
+| Validation failed (non-zero from todo_validation.py) | Stop. Show the script's stderr line verbatim — it is already sanitized — plus the usage line for that action |
+| Task number out of range | Stop. Report the number and the valid range (`1-N`), and suggest `/todo list` |
+| todo.md not found | Not an error: create it with Write, then continue |
+| todo.md exceeds 1MB | Stop. Report the size limit and suggest archiving completed tasks |
+| todo.md line is malformed | Skip the line for numbering, and report it as `todo.md:<line>: unparseable task line` so the user can fix it |
+| No write permission | Stop. Report the permission failure and suggest checking directory permissions |
 
-try:
-    # operation
-except Exception as e:
-    print(safe_error_message(e, "operation context"))
-```
+Script exit statuses (defined in `todo_validation.py`, not redeclared here) map to behaviour as:
 
-Error handling rules:
-- If dependency missing (python3 or todo_validation.py): report missing dependency, exit 127
-- If no write permission: report permission error, suggest checking directory permissions
-- If invalid arguments: report error with usage example
-- If file not found: create new todo.md file
-- If security validation fails: report error type without exposing system details
-- If file too large (>1MB): report size limit error
+| Status | Meaning | Report as |
+|---|---|---|
+| 0 | success | continue |
+| 1 | user error — bad argument or value | the stderr line + usage |
+| 2 | security error — path traversal or denied target | "input rejected for security reasons"; do not echo the offending value |
+| 4 | unrecoverable | "internal validation error"; suggest re-running with simpler input |
 
-Exit code constants (define at start of implementation):
-```bash
-readonly EXIT_SUCCESS=0
-readonly EXIT_USER_ERROR=1
-readonly EXIT_SECURITY_ERROR=2
-readonly EXIT_FILE_TOO_LARGE=3
-readonly EXIT_UNRECOVERABLE=4
-```
-
-Error codes:
-- 0: Success - Task operation completed
-- 1: User error - Invalid arguments, permission denied
-- 2: Security error - Injection attempt, path traversal detected
-- 3: File too large - todo.md exceeds 1MB
-- 4: Unrecoverable error - Critical failure
-
-Security:
-- Never expose absolute paths (use safe_error_message)
-- Never expose stack traces (first line only)
-- Never expose internal system details
-- Report only user-actionable information
+**Security**: report only user-actionable information. `safe_error_message()` already strips absolute paths and keeps the first line of any traceback — pass script stderr through unchanged rather than re-wording it, and never add the resolved path back in.
 
 ## Examples
 
-Input: /todo add "Fix authentication bug" --priority=high --tags=security,urgent,api --due=tomorrow
-Output: - [ ] Fix authentication bug | Priority: high | Due: 2025-01-16 | Created: 2025-01-15 #security #urgent #api
+Normal cases:
 
-Input: /todo complete 1
-Before: - [ ] Fix authentication bug | Priority: high | Due: 2025-01-16 | Created: 2025-01-15 #security
-After:  - [x] Fix authentication bug | Priority: high | Due: 2025-01-16 | Created: 2025-01-15 | Completed: 2025-01-15 #security
+```
+/todo add "Fix authentication bug" --priority=high --tags=security,urgent,api --due=tomorrow
+→ Added:
+  - [ ] Fix authentication bug | Priority: high | Due: 2026-09-02 | Created: 2026-09-01 #security #urgent #api
 
-Input: /todo uncomplete 1
-Action: Revert task 1 to incomplete status, remove Completed field
+/todo list
+→ 1. [ ] Fix authentication bug | Priority: high | Due: 2026-09-02 #security #urgent #api
+  2. [ ] Investigate library X   | Priority: medium
+  3. [x] Update README           | Priority: medium | Completed: 2026-09-01 #docs
+  3 tasks (2 open, 1 done)
 
-Input: /todo remove 2
-Action: Delete task 2 from todo.md
+/todo list --filter=priority:medium
+→ 2. [ ] Investigate library X   | Priority: medium
+  3. [x] Update README           | Priority: medium | Completed: 2026-09-01 #docs
+  2 of 3 tasks match
+  (numbers are original list positions, so /todo complete 2 still targets the right task)
 
-Input: /todo list --filter=priority:high --sort=due
-Action: List high-priority tasks sorted by due date
+/todo complete 1
+→ Completed:
+  - [x] Fix authentication bug | Priority: high | Due: 2026-09-02 | Created: 2026-09-01 | Completed: 2026-09-01 #security #urgent #api
 
-Input: /todo list --filter=tag:security
-Action: List tasks tagged #security
+/todo uncomplete 1
+→ Reopened (Completed field removed):
+  - [ ] Fix authentication bug | Priority: high | Due: 2026-09-02 | Created: 2026-09-01 #security #urgent #api
 
-Input: /todo add "Fix auth bug" --priority=high --tags=security,urgent --due=2025-01-16
-Output: - [ ] Fix auth bug | Priority: high | Due: 2025-01-16 | Created: 2025-01-15 #security #urgent
+/todo remove 2
+→ Removed:
+  - [ ] Investigate library X | Priority: medium | Created: 2026-08-30
 
-Input: /todo
-Action: Interactive mode - prompt for action selection
+/todo next
+→ NEXT_TASK_ID:task-7 / PRIORITY:high / EFFORT:M / DESCRIPTION:Add rate limiting to the login endpoint
+  → AskUserQuestion: run /implement task-7 now?
 
-Input: /todo next
-Action: Show next priority task based on due date and priority
+/todo sync
+→ Imported 3 pending tasks from tasks.yml (Created: 2026-09-01, tags from type field)
+  Existing tasks unchanged.
 
-Input: /todo sync
-Action: Import pending tasks from tasks.yml to todo.md with Created=sync date, tags from type field
+/todo
+→ AskUserQuestion: which action? (add / list / complete)
+```
 
----
+Error cases:
 
-## Reference Files
+```
+/todo complete abc
+→ ERROR: Invalid task number: abc (expected: positive integer)
+  Usage: /todo complete <N>   (N is a 1-based position from /todo list)
 
-**Input validation utilities**: `${CLAUDE_SKILL_DIR}/todo_validation.py`
-- Security-focused validation for file paths, user input, task IDs
-- Functions:
-  - `validate_path()`: Path traversal prevention
-  - `sanitize_input()`: Unicode normalization, length limits
-  - `validate_task_id()`: task-N format validation
-  - `safe_error_message()`: Sanitize error messages
-  - `validate_priority()`: Priority value validation
-  - `validate_tags()`: Tag format validation
+/todo complete 99
+→ ERROR: Task 99 does not exist (valid range: 1-3)
+  Run /todo list to see current task numbers.
 
-**Usage**: All user inputs in /todo command must pass validation before processing
+/todo add "x" --priority=urgent
+→ ERROR: Invalid priority: urgent (allowed: critical, high, medium, low)
+
+/todo add "Fix bug" --tags=sec;rm -rf
+→ ERROR: Invalid tag: sec;rm (allowed: alphanumeric, underscore, hyphen only)
+
+/todo add "Fix a | b bug"
+→ ERROR: Description cannot contain "|" (reserved as the field separator)
+
+/todo add "Review" --due=2026-02-30
+→ ERROR: Invalid due date: 2026-02-30 (not a real calendar date)
+
+/todo deploy
+→ ERROR: Invalid action: deploy
+  Valid actions: add, complete (done), uncomplete, remove (delete), list, next, sync
+
+/todo sync   # with todo_sync.py missing
+→ ERROR: sync requires todo_sync.py, which was not found in the utils directory.
+  /todo sync cannot run until it is restored.
+```
