@@ -4,6 +4,15 @@ set -Eeuo pipefail
 
 readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
+readonly SUITES=(
+    test_layer1_syntax
+    test_layer1_toolchain
+    test_layer2_format
+    test_layer3_integration
+    test_layer5_security
+    test_pipeline
+)
+
 echo "=========================================="
 echo "Running Validation Test Suite"
 echo "=========================================="
@@ -11,46 +20,30 @@ echo
 
 passed=0
 failed=0
+declare -a FAILED_SUITES=()
 
-# Test 1
-echo "Running test_layer1_syntax..."
-if "${SCRIPT_DIR}/test_layer1_syntax.sh" > /dev/null 2>&1; then
-    echo "  ✓ PASSED"
-    ((passed++))
-else
-    echo "  ✗ FAILED"
-    ((failed++))
-fi
+for suite in "${SUITES[@]}"; do
+    echo "Running ${suite}..."
 
-# Test 2
-echo "Running test_layer2_format..."
-if "${SCRIPT_DIR}/test_layer2_format.sh" > /dev/null 2>&1; then
-    echo "  ✓ PASSED"
-    ((passed++))
-else
-    echo "  ✗ FAILED"
-    ((failed++))
-fi
+    if [[ ! -x "${SCRIPT_DIR}/${suite}.sh" ]]; then
+        echo "  ✗ FAILED (missing or not executable)"
+        # Counters use arithmetic assignment, not ((x++)): the latter returns a
+        # non-zero status when the pre-increment value is 0, which aborts the
+        # whole runner under `set -e`.
+        failed=$((failed + 1))
+        FAILED_SUITES+=("$suite")
+        continue
+    fi
 
-# Test 5
-echo "Running test_layer5_security..."
-if "${SCRIPT_DIR}/test_layer5_security.sh" > /dev/null 2>&1; then
-    echo "  ✓ PASSED"
-    ((passed++))
-else
-    echo "  ✗ FAILED"
-    ((failed++))
-fi
-
-# Test Pipeline
-echo "Running test_pipeline..."
-if "${SCRIPT_DIR}/test_pipeline.sh" > /dev/null 2>&1; then
-    echo "  ✓ PASSED"
-    ((passed++))
-else
-    echo "  ✗ FAILED"
-    ((failed++))
-fi
+    if "${SCRIPT_DIR}/${suite}.sh" > /dev/null 2>&1; then
+        echo "  ✓ PASSED"
+        passed=$((passed + 1))
+    else
+        echo "  ✗ FAILED"
+        failed=$((failed + 1))
+        FAILED_SUITES+=("$suite")
+    fi
+done
 
 echo
 echo "=========================================="
@@ -58,14 +51,21 @@ echo "Summary"
 echo "=========================================="
 echo "Passed: $passed"
 echo "Failed: $failed"
+
+if ((failed > 0)); then
+    echo
+    echo "Failed suites (re-run individually for details):"
+    printf '  - %s.sh\n' "${FAILED_SUITES[@]}"
+fi
+
 echo "=========================================="
 
-if [[ $failed -eq 0 ]]; then
+if ((failed == 0)); then
     echo
     echo "✓ All tests passed!"
     exit 0
-else
-    echo
-    echo "✗ Some tests failed"
-    exit 1
 fi
+
+echo
+echo "✗ Some tests failed"
+exit 1

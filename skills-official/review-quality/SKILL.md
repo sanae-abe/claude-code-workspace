@@ -1,9 +1,9 @@
 ---
 name: review-quality
-description: Evaluate LLM implementation quality of CLAUDE.md or skills. Use when checking whether a skill, CLAUDE.md, or instruction document is concrete and consistent enough for an LLM to execute without guessing.
-when_to_use: "CLAUDE.md quality check, skill evaluation, LLM optimization review"
+description: Evaluate LLM implementation quality of CLAUDE.md, skills, or any other LLM instruction document (e.g. rules/*.md). Use when checking whether a skill, CLAUDE.md, or instruction document is concrete and consistent enough for an LLM to execute without guessing.
+when_to_use: "CLAUDE.md quality check, skill evaluation, rules document review, LLM optimization review"
 argument-hint: "<file-path>"
-allowed-tools: Read
+allowed-tools: Read Glob
 model: sonnet
 ---
 
@@ -36,7 +36,7 @@ Authority for skill structure and frontmatter rules: `~/.claude/rules/slash-comm
 | 85-89% | Needs Improvement | Address medium issues |
 | <85% | Inadequate | Major revision required |
 
-Bands apply to the **overall pooled score**. Dimension-level percentages are indicative only: with a 6-item dimension the smallest step is 8.3 points, so some bands are unreachable at dimension level.
+Bands apply to the **overall pooled score** only — see Scoring Method for how that score is derived and why dimension scores are not mapped to this table.
 
 ## Scoring Method
 
@@ -46,7 +46,7 @@ Single source of truth for all target types:
 - N/A items are excluded from the denominator; state the reason in findings
 - **Overall (authoritative)**: total points / total applicable items across all three dimensions, pooled
 - **Per dimension (indicative)**: dimension points / dimension applicable items
-- Map only the overall score to the Scoring Criteria table
+- Map only the overall score to the Scoring Criteria table. Dimension percentages are indicative: with a 6-item dimension the smallest step is 8.3 points, so some bands are unreachable at dimension level
 
 Do not average the three dimension percentages — the dimensions have unequal item counts, so the average diverges from the pooled total.
 
@@ -58,11 +58,12 @@ Do not average the three dimension percentages — the dimensions have unequal i
    - **Skill**: basename is `SKILL.md`, or path contains `/skills/` or `/skills-official/`
    - **Other** (LLM instruction docs, e.g. `rules/tech-stacks/*.md`): apply the CLAUDE.md checklist; mark inapplicable items N/A
 3. Read target file with Read tool
-4. Apply the type-specific checklist — count items met per dimension
-5. Cross-check instruction sections against each other and against the Examples section. Every contradiction found is an Accuracy finding and caps that item at 0
-6. Calculate scores per the Scoring Method section
-7. Generate quality report with evidence (specific line references)
-8. Provide actionable improvement suggestions ordered by impact
+4. Resolve every file path the target references, using Glob. Paths that do not resolve are a Maintainability finding under "Referenced paths exist"
+5. Apply the type-specific checklist — count items met per dimension
+6. Cross-check instruction sections against each other and against the Examples section. Every contradiction found caps the **"No contradictions"** item at 0. If a contradiction also makes a different item unexecutable, score that item separately on its own merits and report both
+7. Calculate scores per the Scoring Method section
+8. Generate quality report with evidence (specific line references)
+9. Provide actionable improvement suggestions ordered by impact
 
 ## Argument Validation
 
@@ -77,7 +78,7 @@ If file path missing:
 
 If file path contains `..`:
   Report: `ERROR: Path traversal detected in file path`
-  Show: `Use absolute paths (e.g. ~/.claude/skills/ship/SKILL.md)`
+  Show: `Use a full path rooted at ~ or / (e.g. ~/.claude/skills/ship/SKILL.md)`
   Stop — do not read any file
 
 If extra arguments are present:
@@ -85,10 +86,30 @@ If extra arguments are present:
   Show: `Usage: /review-quality <file-path>`
   Stop — do not read any file
 
+If the file extension is not `.md`:
+  Report: `ERROR: Unsupported target type: <path>`
+  Show: `Only Markdown instruction documents are supported`
+  Stop
+
 If file not found:
   Report: `ERROR: File not found: <path>`
-  Show: the path exactly as given — never absolute paths, working directories, or shell output
+  Show: the path exactly as given — never the resolved absolute path, the working directory, or shell output
   Stop
+
+If the file cannot be read (permission denied, or content is not text):
+  Report: `ERROR: Cannot read target file: <path>`
+  Show: the path exactly as given, plus the reason category only (`permission` or `not text`)
+  Stop
+
+If the file is empty or whitespace only:
+  Report: `ERROR: Target file is empty: <path>`
+  Show: `Provide a CLAUDE.md, SKILL.md, or other Markdown instruction document`
+  Stop
+
+If the target is a Skill and has no YAML frontmatter:
+  Do not stop. Score the frontmatter-dependent Accuracy items ("Tool grants are minimal",
+  "Argument substitution usage shown") as NOT MET, and report the missing frontmatter as a
+  HIGH recommendation
 
 ## Evaluation Criteria by Type
 
@@ -105,11 +126,12 @@ If file not found:
 - [ ] Argument substitution usage shown (the ARGUMENTS placeholder appears and is processed) — N/A if the skill takes no arguments
 - [ ] No contradictions between instruction sections, or between instructions and Examples
 
-**Maintainability (6 items)**:
+**Maintainability (7 items)**:
 - [ ] Code examples use standard patterns
 - [ ] No duplicated rules across sections (a rule is stated once and referenced)
 - [ ] Clear section hierarchy
 - [ ] External references instead of inline duplication (notably `rules/slash-command-design.md` for skill conventions)
+- [ ] Referenced paths exist — supporting files, `${CLAUDE_SKILL_DIR}` targets, and referenced docs all resolve (verified with Glob in Execution Flow step 4)
 - [ ] Under 500 lines (or supporting files used)
 - [ ] LLM instructions separated from user-facing content
 
@@ -140,7 +162,7 @@ N/A note: "Shell syntax examples" and "Failure behavior" are N/A together — a 
 - [ ] Structured format (YAML, tables, code blocks)
 - [ ] External references instead of duplication
 - [ ] Clear section hierarchy
-- [ ] Referenced paths and commands exist
+- [ ] Referenced paths exist (verified with Glob in Execution Flow step 4)
 - [ ] Token-efficient (no redundant examples)
 - [ ] No user-facing troubleshooting content
 
@@ -151,9 +173,13 @@ N/A note: "Shell syntax examples" and "Failure behavior" are N/A together — a 
 - [ ] Examples embedded in decision trees
 - [ ] No user-facing commands or guides
 
-Reference resolution is scored once, under Maintainability — do not also count it here.
+### Reference Scoring Scope (both checklists)
+
+"External references instead of duplication" scores *whether* the document delegates instead of inlining. "Referenced paths exist" scores whether those targets resolve. They are distinct items — do not collapse them, and do not score reference resolution anywhere else. Command existence (`command -v`) is out of scope: this skill grants no shell access, so score a referenced command only on whether the document names it concretely enough for a reader to verify.
 
 ## Risk Assessment
+
+Dimension scores below 90% flag where to look — this threshold is an internal detection trigger, not a band from the Scoring Criteria table (only the overall score maps to that table).
 
 For each dimension scoring <90%, identify:
 
@@ -211,12 +237,12 @@ Priority Recommendations
 
 HIGH (Critical for quality):
 1. <specific issue> (lines XX-XX)
-   Impact: <Dimension> +X%
+   Impact: +X pt (overall); <Dimension>
    Action: <concrete fix with example>
 
 MEDIUM (Quality improvement):
 2. <specific issue>
-   Impact: <Dimension> +X%
+   Impact: +X pt (overall); <Dimension>
    Pattern: <template or example>
 
 ═══════════════════════════════════════
@@ -228,9 +254,12 @@ Current lines: XXX (measured)
 Deletion candidates — list only content verified redundant, with both line ranges:
 - Lines XX-XX duplicate lines YY-YY: <the rule stated twice>
 - Lines XX-XX: user-facing content → move to USER_GUIDE.md
-
-Report measured line counts only. Do not estimate an "optimal" line count.
 ```
+
+Notes on the template above — these are instructions, never emitted into the report:
+- `Date`: use the session date; omit the line entirely if no date is available
+- Report measured line counts only; do not estimate an "optimal" line count
+- State point impact in overall points (`+X pt`), never in dimension percentages (see Scoring Method)
 
 ## Examples
 
@@ -247,10 +276,16 @@ Error cases:
 → ERROR: No target file specified. Usage: /review-quality <file-path>
 
 /review-quality ../../etc/passwd
-→ ERROR: Path traversal detected. Use absolute paths (e.g. ~/.claude/skills/ship/SKILL.md)
+→ ERROR: Path traversal detected in file path. Use a full path rooted at ~ or / (e.g. ~/.claude/skills/ship/SKILL.md)
 
 /review-quality missing.md
 → ERROR: File not found: missing.md
+
+/review-quality notes.txt
+→ ERROR: Unsupported target type: notes.txt. Only Markdown instruction documents are supported
+
+/review-quality empty.md
+→ ERROR: Target file is empty: empty.md. Provide a CLAUDE.md, SKILL.md, or other Markdown instruction document
 
 /review-quality file.md --report=json
 → ERROR: Unexpected argument: --report=json. Usage: /review-quality <file-path>

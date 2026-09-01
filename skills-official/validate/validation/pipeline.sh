@@ -8,6 +8,7 @@
 #   --layers=LAYERS              Comma-separated layers to run (all|syntax,security)
 #   --auto-fix=BOOL              Enable auto-fix for fixable issues (true|false)
 #   --stop-on-failure=BOOL       Stop on critical failures (true|false)
+#   --report-file=PATH           Absolute path for the JSON report
 #
 # Exit codes:
 #   0 - All gates passed
@@ -32,6 +33,7 @@ LAYERS="all"
 AUTO_FIX="false"
 STOP_ON_FAILURE="false"
 REPORT_FILE=""
+REPORT_FILE_ARG=""
 TEMP_DIR=""
 
 # Counters
@@ -73,12 +75,12 @@ safe_validate_layers() {
     local layer
     for layer in $layers; do
         case "$layer" in
-            syntax|security|integration|semantic)
+            syntax|security|integration)
                 # Valid layer
                 ;;
             *)
                 log_error "Unknown layer: $layer"
-                log_error "Valid layers: syntax, security, integration, semantic, all"
+                log_error "Valid layers: syntax, security, integration, all"
                 return 1
                 ;;
         esac
@@ -100,6 +102,9 @@ parse_arguments() {
                 ;;
             --stop-on-failure=*)
                 STOP_ON_FAILURE="${arg#*=}"
+                ;;
+            --report-file=*)
+                REPORT_FILE_ARG="${arg#*=}"
                 ;;
             --help|-h)
                 show_usage
@@ -128,6 +133,24 @@ parse_arguments() {
         log_error "Invalid --stop-on-failure value: $STOP_ON_FAILURE (must be 'true' or 'false')"
         exit 2
     fi
+
+    # Validate report file path (only when explicitly provided)
+    if [[ -n "$REPORT_FILE_ARG" ]]; then
+        if [[ "$REPORT_FILE_ARG" != /* || "$REPORT_FILE_ARG" == *..* ]]; then
+            log_error "Invalid --report-file value (absolute path without \"..\" required)"
+            exit 2
+        fi
+        if [[ -L "$REPORT_FILE_ARG" ]]; then
+            log_error "Invalid --report-file value (symbolic link is not allowed)"
+            exit 2
+        fi
+        local report_parent
+        report_parent="$(dirname -- "$REPORT_FILE_ARG")"
+        if [[ ! -d "$report_parent" || ! -w "$report_parent" ]]; then
+            log_error "Invalid --report-file value (parent directory is missing or not writable)"
+            exit 2
+        fi
+    fi
 }
 
 # Show usage information
@@ -139,7 +162,7 @@ Quality gate pipeline orchestration for validation system.
 
 OPTIONS:
     --layers=LAYERS              Comma-separated layers to run
-                                 Options: all, syntax, security, integration, semantic
+                                 Options: all, syntax, security, integration
                                  Default: all
 
     --auto-fix=BOOL              Enable auto-fix for fixable issues
@@ -149,6 +172,9 @@ OPTIONS:
     --stop-on-failure=BOOL       Stop pipeline on critical failures
                                  Options: true, false
                                  Default: false
+
+    --report-file=PATH           Absolute path to write the JSON report to
+                                 Default: ${REPORT_DIR}/quality-gate-report.json
 
     --help, -h                   Show this help message
 
@@ -169,7 +195,7 @@ EXIT CODES:
     3 - Critical failure
 
 REPORT:
-    JSON report generated at: ${REPORT_DIR}/quality-gate-report.json
+    JSON report generated at: ${REPORT_FILE_ARG:-${REPORT_DIR}/quality-gate-report.json}
 EOF
 }
 
@@ -181,7 +207,7 @@ init_report() {
         exit 1
     }
 
-    REPORT_FILE="${REPORT_DIR}/quality-gate-report.json"
+    REPORT_FILE="${REPORT_FILE_ARG:-${REPORT_DIR}/quality-gate-report.json}"
 
     # Initialize JSON report structure
     cat > "$REPORT_FILE" <<EOF
@@ -209,7 +235,7 @@ EOF
 # Expand layers list (convert 'all' to specific layers)
 expand_layers() {
     if [[ "$LAYERS" == "all" ]]; then
-        echo "syntax,security,integration,semantic"
+        echo "syntax,security,integration"
     else
         echo "$LAYERS"
     fi
@@ -225,8 +251,11 @@ get_gate_scripts_for_layer() {
 
     case "$layer" in
         syntax)
-            # Layer 2 (format) runs as part of the syntax layer
-            echo "${SCRIPT_DIR}/gates/layer1_syntax.sh ${SCRIPT_DIR}/gates/layer2_format.sh"
+            # Layer 2 (format) and the toolchain gate run as part of the syntax layer
+            echo "${SCRIPT_DIR}/gates/layer1_syntax.sh ${SCRIPT_DIR}/gates/layer2_format.sh ${SCRIPT_DIR}/gates/layer1_toolchain.sh"
+            ;;
+        integration)
+            echo "${SCRIPT_DIR}/gates/layer3_integration.sh"
             ;;
         security)
             echo "${SCRIPT_DIR}/gates/layer5_security.sh"
@@ -247,8 +276,10 @@ run_gate_scripts() {
     local -i worst=0
 
     for script in "$@"; do
+        # A missing gate script is a broken installation, not a passing check.
         if [[ ! -f "$script" ]]; then
-            log_warn "Gate script not found: $script (skipping)"
+            log_error "Gate script not found: $script"
+            worst=3
             continue
         fi
 
@@ -283,18 +314,26 @@ run_gate() {
 
     read -r -a gate_scripts <<< "$(get_gate_scripts_for_layer "$layer")"
 
+    # A layer with no gate script would otherwise be counted as a silent pass,
+    # reporting "all gates passed" for checks that never ran.
     if [[ ${#gate_scripts[@]} -eq 0 ]]; then
-        log_warn "No gate script configured for layer: $layer (skipping)"
-        return 0
+        log_error "Layer '$layer' has no gate implementation"
+        log_error "Remove it from --layers, or implement its gate script"
+        finalize_report "configuration_error"
+        exit 2
     fi
 
     log_info "Running gate: $layer"
 
-    # Run gate in background if requested
+    # Background mode: the CALLER backgrounds this function with `&`, so the
+    # gate must run in the foreground here and return its real exit code.
+    # Backgrounding again would detach the gate and return 0 unconditionally,
+    # making every parallel gate report as passed.
     if [[ "$background" == "true" ]]; then
         output_file="${TEMP_DIR}/${layer}.output"
-        run_gate_scripts "${gate_scripts[@]}" > "$output_file" 2>&1 &
-        return 0
+        gate_result=0
+        run_gate_scripts "${gate_scripts[@]}" > "$output_file" 2>&1 || gate_result=$?
+        return "$gate_result"
     fi
 
     # Run gate synchronously and capture output
@@ -420,9 +459,11 @@ run_gates_parallel() {
 
     # Wait for all background jobs and collect exit codes
     for pid in "${pids[@]}"; do
-        local exit_code
+        # Must be initialized here, not merely declared: `local` on an
+        # already-local variable keeps its previous value, so a failing gate
+        # would leak its exit code into every gate waited on after it.
+        local exit_code=0
         wait "$pid" || exit_code=$?
-        exit_code=${exit_code:-0}
 
         layer="${pid_to_layer[$pid]}"
 

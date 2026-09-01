@@ -1,7 +1,7 @@
 ---
 name: validate
-description: Multi-layer quality gate validation with auto-fix support. Use after implementation to check syntax, security, and integration quality.
-argument-hint: "[--layers=all|syntax,security] [--auto-fix] [--report=text|json]"
+description: Multi-layer quality gate for Node, Rust and Python projects. Runs type check, lint, format, tests with a coverage threshold, and a security scan, then reports failures with file:line references. Use after implementation, before commit, or before opening a PR. Only rewrites files when --auto-fix is passed.
+argument-hint: "[--layers=all|syntax,integration,security] [--auto-fix] [--report=text|json]"
 allowed-tools: Bash Read AskUserQuestion
 model: sonnet
 ---
@@ -142,20 +142,24 @@ echo "   Layers: $LAYERS"
 echo "   Auto-fix: $AUTO_FIX"
 echo ""
 
-if bash "$PIPELINE_PATH" --layers="$LAYERS" --auto-fix="$AUTO_FIX" --stop-on-failure=true; then
+if bash "$PIPELINE_PATH" \
+    --layers="$LAYERS" \
+    --auto-fix="$AUTO_FIX" \
+    --stop-on-failure=true \
+    --report-file="$REPORT_FILE"; then
     VALIDATION_RESULT=0
 else
     VALIDATION_RESULT=$?
 fi
 
-if [[ -f "$REPORT_FILE" ]]; then
+if [[ -s "$REPORT_FILE" ]]; then
     if [[ "$REPORT_FORMAT" == "json" ]]; then
         python3 "$REPORT_GENERATOR" "$REPORT_FILE" --format=json
     else
         python3 "$REPORT_GENERATOR" "$REPORT_FILE"
     fi
 else
-    echo "Warning: Report file not found, report generation skipped"
+    echo "Warning: Report was not generated, report display skipped"
 fi
 
 exit $VALIDATION_RESULT
@@ -187,14 +191,20 @@ Total Gates: X | Passed: Y | Failed: Z
 
 - 0: All quality gates passed
 - 1: Quality gate failures or invalid arguments
-- 2: Invalid report format argument
-- 3: Security error (symlink detected)
+- 2: Invalid report format, or a requested layer has no gate implementation
+- 3: Security error (symlink detected), or a gate script is missing from the install
 
 ### Common Errors
 
 ```
 ERROR: Invalid layer 'invalid'
 Allowed: all, syntax, security, integration (comma-separated)
+
+[ERROR] Layer 'semantic' has no gate implementation
+Resolution: remove it from --layers, or implement its gate script
+
+[ERROR] Gate script not found: .../gates/layer3_integration.sh
+Resolution: reinstall the skill; a missing gate is never treated as a pass
 
 ERROR: Pipeline not found or not executable: validation/pipeline.sh
 Resolution: chmod +x ~/.claude/skills/validate/validation/pipeline.sh
@@ -214,39 +224,69 @@ Resolution: Replace symlink with actual file
 
 ## Layer Details
 
-### Layer 1-2: Syntax (3-5s)
+Toolchains are detected from marker files at the project root: `package.json` (Node),
+`Cargo.toml` (Rust), `pyproject.toml` / `requirements.txt` / `setup.py` (Python).
+A monorepo matching several markers runs the checks for each. Checks whose tool or
+configuration is absent are skipped and reported as skipped, never as passed.
 
-- TypeScript: `npm run typecheck`
-- ESLint: `npm run lint`
-- Prettier: formatting consistency
+### Layer 1-2: Syntax
 
-Auto-fixable: ESLint errors, Prettier formatting
-Not auto-fixable: TypeScript type errors
+Three gates run under the `syntax` layer:
 
-### Layer 3-4: Integration (10-30s)
+**`layer1_syntax.sh`** — YAML/JSON parse validation for `tasks.yml`,
+`.autoflow/SPRINTS.yml`, `package.json`, `tsconfig.json`. Requires PyYAML
+(`pip3 install pyyaml`); the gate fails without it.
 
-- Test execution: `npm run test:run`
-- Test coverage: 80% threshold
-- API type checking
+**`layer2_format.sh`** — `tasks.yml` conventions: Markdown leaking into YAML values,
+enum value normalization, field naming, indentation. Auto-fixable.
+
+**`layer1_toolchain.sh`** — per-toolchain checks:
+
+| Toolchain | Type check | Lint | Format |
+|---|---|---|---|
+| Node | `npm run typecheck` (or `tsc --noEmit` when `tsconfig.json` exists) | `npm run lint` (or `eslint .`) | `prettier --check` when configured |
+| Rust | `cargo check --all-features` | `cargo clippy --all-features -- -D warnings` | `cargo fmt --check` |
+| Python | `mypy` when configured | `ruff check` | `ruff format --check` |
+
+Auto-fixable: ESLint, Prettier, `cargo fmt`, `ruff check --fix`, `ruff format`
+Not auto-fixable: type errors, Clippy denials
+
+### Layer 3-4: Integration
+
+**`layer3_integration.sh`** — test execution plus coverage enforcement:
+
+| Toolchain | Test command | Coverage source |
+|---|---|---|
+| Node | `npm run test:run` (falls back to `test:ci`, `test`; runs with `CI=true`) | `coverage/coverage-summary.json` |
+| Rust | `cargo test --all-features` | `cobertura.xml` |
+| Python | `pytest` | `coverage.xml` |
+
+The coverage threshold defaults to 80% and is enforced **only when a machine-readable
+coverage report exists** — a run that produces no report passes the layer and says so.
+Override via `COVERAGE_THRESHOLD` in `.autoflow/validation.conf`.
 
 Not auto-fixable (requires manual fix or new tests)
 
-### Layer 5: Security (5-10s)
+### Layer 5: Security
 
-- Hardcoded secrets (`.env`, API keys, tokens)
-- OWASP Top 10 compliance
-- Dependency vulnerabilities: `npm audit`
+**`layer5_security.sh`** — requires a Git repository (files to scan come from Git):
+
+- Hardcoded secrets (API keys, tokens, private keys)
+- Injection patterns (SQLi, XSS, command injection, path traversal)
+- Dependency vulnerabilities: `npm audit`, `pip-audit`
 - Sensitive file detection (`.env*`, `*.pem`, `*.key`)
 
 Not auto-fixable (requires human judgment)
 
 ### Performance Guide
 
-| Use case | Command | Time |
-|----------|---------|------|
-| Fast feedback during dev | `--layers=syntax` | 3-5s |
-| Pre-commit check | `--layers=syntax,security` | 8-15s |
-| Pre-PR full validation | `--layers=all` | 18-45s |
+Timings depend on project size and test suite; the ordering is what matters.
+
+| Use case | Command |
+|----------|---------|
+| Fast feedback during dev | `--layers=syntax` |
+| Pre-commit check | `--layers=syntax,security` |
+| Pre-PR full validation | `--layers=all` |
 
 ## Examples
 
@@ -272,8 +312,10 @@ Not auto-fixable (requires human judgment)
 validation/
 ├── pipeline.sh              # Main pipeline
 ├── gates/
-│   ├── layer1_syntax.sh
-│   ├── layer2_format.sh
+│   ├── layer1_syntax.sh         # YAML/JSON parse validation
+│   ├── layer1_toolchain.sh      # typecheck / lint / format
+│   ├── layer2_format.sh         # tasks.yml conventions
+│   ├── layer3_integration.sh    # tests + coverage threshold
 │   └── layer5_security.sh
 ├── fixers/
 │   ├── enum_normalizer.py
@@ -281,7 +323,10 @@ validation/
 │   └── yaml_fixer.py
 ├── patterns/
 │   └── security-patterns.json
+├── tests/
+│   └── run_all_tests.sh         # runs every gate's test suite
 └── utils/
+    ├── detect-toolchain.sh      # toolchain detection helpers
     └── report-generator.py
 ```
 

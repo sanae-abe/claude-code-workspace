@@ -2,7 +2,7 @@
 name: analyze
 description: Project health assessment and code quality analysis
 argument-hint: "[overview|quality] [--detailed|--quick|--report|--focus=area]"
-allowed-tools: Bash Read Grep Glob Agent TodoWrite
+allowed-tools: Skill Bash Read Grep Glob Agent TodoWrite
 model: sonnet
 ---
 
@@ -133,15 +133,13 @@ Detailed code quality and security analysis:
 - Accessibility compliance (if applicable)
 
 Analysis method:
-```bash
-# Parallel quality checks
-{
-  TS_ERRORS=$(npm run typecheck 2>&1 | grep -c "error" || echo "0") &
-  LINT_ERRORS=$(npm run lint 2>&1 | grep -c "error" || echo "0") &
-  npm audit --production &
-  wait
-}
-```
+
+1. Invoke `/validate --layers=all --report=json` via Skill tool. It detects the toolchain
+   and runs type check, lint, format, tests with a coverage threshold, and the security scan.
+2. Read the counts and file:line references from its JSON report — do not re-run the
+   underlying commands.
+3. If /validate is unavailable, fall back to the project's own commands
+   (`npm run typecheck`, `npm run lint`, `npm audit --production`).
 
 Then, for deep analysis: `Agent (subagent_type=security-auditor)` — "Comprehensive security audit"
 
@@ -197,17 +195,8 @@ npm audit --production
 npm audit fix
 ```
 
-**Code Quality Tools**:
-```bash
-# ESLint - Linting
-npm run lint
-
-# Prettier - Code formatting
-npm run format
-
-# TypeScript - Type checking
-npm run typecheck
-```
+**Code Quality Tools**: covered by `/validate --layers=syntax` (type check, lint, format).
+Invoke it rather than calling the underlying tools individually.
 
 ## Error Handling
 

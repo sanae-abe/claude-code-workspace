@@ -76,6 +76,27 @@ report_finding() {
 }
 
 # Safe pattern matching with timeout protection (ReDoS prevention)
+# Resolve a timeout command once. GNU coreutils ships `timeout`; Homebrew on
+# macOS installs it as `gtimeout`. With neither available the command must still
+# run — silently returning failure would turn every scan into "no findings".
+if command -v timeout &>/dev/null; then
+    readonly TIMEOUT_CMD="timeout"
+elif command -v gtimeout &>/dev/null; then
+    readonly TIMEOUT_CMD="gtimeout"
+else
+    readonly TIMEOUT_CMD=""
+    log_warning "No timeout command found (install coreutils for ReDoS protection); scans run unbounded"
+fi
+
+# Run a command under the resolved timeout, or directly when none is available.
+run_with_timeout() {
+    if [[ -n "$TIMEOUT_CMD" ]]; then
+        "$TIMEOUT_CMD" "${TIMEOUT_SECONDS}s" "$@"
+    else
+        "$@"
+    fi
+}
+
 safe_grep() {
     local pattern="$1"
     local file="$2"
@@ -97,7 +118,7 @@ safe_grep() {
     fi
 
     # Use timeout to prevent ReDoS attacks
-    timeout "${TIMEOUT_SECONDS}s" grep -nE "$pattern" "$file" 2>/dev/null || return 1
+    run_with_timeout grep -nE "$pattern" "$file" 2>/dev/null || return 1
 }
 
 # Safe git grep with timeout
@@ -105,7 +126,7 @@ safe_git_grep() {
     local pattern="$1"
     shift
 
-    timeout "${TIMEOUT_SECONDS}s" git grep -nE "$pattern" "$@" 2>/dev/null || return 1
+    run_with_timeout git grep -nE "$pattern" "$@" 2>/dev/null || return 1
 }
 
 # Extract JSON patterns safely

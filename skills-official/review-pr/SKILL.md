@@ -130,36 +130,24 @@ Run each check sequentially and capture exit status:
 SECRETS_FOUND=$(git diff "$BASE_BRANCH"...HEAD | grep -ciE "(api[_-]?key|password|secret|token|bearer)" 2>/dev/null || echo "0")
 ```
 
-**TypeScript** (skip if no tsconfig.json):
-```bash
-if [[ -f tsconfig.json ]]; then
-  TS_OUTPUT=$(npm run typecheck 2>&1)
-  TS_ERRORS=$(echo "$TS_OUTPUT" | grep -c "error" || echo "0")
-fi
-```
+**Type check, lint, format, tests and dependency audit**:
+Invoke `/validate --layers=all --report=json` via Skill tool. It detects the toolchain
+(Node / Rust / Python), skips checks whose tooling is absent, and returns per-gate
+status with file:line references.
 
-**ESLint** (skip if no eslint config):
-```bash
-if [[ -f .eslintrc* || -f eslint.config* ]]; then
-  LINT_OUTPUT=$(npm run lint 2>&1)
-  LINT_ERRORS=$(echo "$LINT_OUTPUT" | grep -c " error " || echo "0")
-fi
-```
+If /validate is unavailable, fall back to the project's own commands
+(`npm run typecheck`, `npm run lint`, `npm run test:run`).
 
-**Tests**:
-```bash
-TEST_OUTPUT=$(npm run test:run --silent 2>&1 | tail -10)
-```
-
-**Build**:
+**Build** (not covered by /validate):
 ```bash
 BUILD_OUTPUT=$(npm run build 2>&1 | tail -10)
 ```
 
 Critical findings:
 - `SECRETS_FOUND > 0` → CRITICAL: list each matched line with surrounding context
-- `TS_ERRORS > 0` → ERROR: TypeScript violations count
-- `LINT_ERRORS > 0` → WARNING: lint violations count
+- /validate `security` gate failed → CRITICAL: report its findings verbatim
+- /validate `syntax` gate failed → ERROR: type or lint violations, with file:line
+- /validate `integration` gate failed → ERROR: failing tests or coverage below threshold
 
 Manual review checklist:
 - Input validation: user input properly sanitized
@@ -170,7 +158,7 @@ Manual review checklist:
 - Dependencies: module separation follows existing patterns
 - Test coverage: new features and bug fixes have corresponding tests
 
-If `--security-focus`: additionally reference `~/.claude/validation/patterns/security-patterns.json` — detection patterns for SQL injection, XSS, command injection, path traversal, weak crypto, insecure auth, and hardcoded credentials
+If `--security-focus`: run `/validate --layers=security` on its own and report every finding it returns — its scan covers SQL injection, XSS, command injection, path traversal, weak crypto, insecure auth, and hardcoded credentials
 If `--multi-perspective`: spawn Agent subagents in parallel — code-reviewer and security-auditor — then aggregate findings
 If `--performance-focus`: spawn performance-engineer agent
 

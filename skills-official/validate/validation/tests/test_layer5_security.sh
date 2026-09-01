@@ -97,6 +97,58 @@ test_gate_exists() {
     fi
 }
 
+
+# The pattern tests above only check the fixtures, not the gate. These run the
+# gate itself against a throwaway repository so a scanner that silently returns
+# "no findings" (e.g. a missing `timeout` binary) cannot pass unnoticed.
+make_git_repo() {
+    local name="$1"
+    local dir="${TEMP_DIR}/${name}"
+
+    mkdir -p "$dir"
+    git -C "$dir" init -q
+    git -C "$dir" config user.email "test@example.com"
+    git -C "$dir" config user.name "test"
+
+    printf '%s\n' "$dir"
+}
+
+run_gate() {
+    local root="$1"
+    local code=0
+
+    PROJECT_ROOT="$root" "$GATE_SCRIPT" false >/dev/null 2>&1 || code=$?
+    printf '%s\n' "$code"
+}
+
+test_gate_detects_aws_key() {
+    test_start "Gate execution flags a committed AWS access key"
+    local dir
+    dir=$(make_git_repo "leak")
+    echo 'const AWS_KEY = "AKIAIOSFODNN7EXAMPLE";' > "$dir/leak.js"
+    git -C "$dir" add -A >/dev/null 2>&1
+
+    if [[ "$(run_gate "$dir")" == "1" ]]; then
+        test_pass
+    else
+        test_fail "Gate did not fail on a hardcoded AWS access key"
+    fi
+}
+
+test_gate_passes_clean_repo() {
+    test_start "Gate execution passes a repository with no findings"
+    local dir
+    dir=$(make_git_repo "clean")
+    echo 'export const greeting = "hello";' > "$dir/app.js"
+    git -C "$dir" add -A >/dev/null 2>&1
+
+    if [[ "$(run_gate "$dir")" == "0" ]]; then
+        test_pass
+    else
+        test_fail "Gate failed on a repository with no security issues"
+    fi
+}
+
 main() {
     echo "==========================================="
     echo "Layer 5 Security Validation Test Suite"
@@ -110,6 +162,8 @@ main() {
     test_xss_innerhtml || true
     test_xss_dangerous_html || true
     test_xss_eval || true
+    test_gate_detects_aws_key || true
+    test_gate_passes_clean_repo || true
 
     echo
     echo "==========================================="

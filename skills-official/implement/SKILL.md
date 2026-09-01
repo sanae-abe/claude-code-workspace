@@ -350,4 +350,4 @@ Run in order after completion:
 - tasks.yml schema: `~/.claude/skills/implement/tasks.schema.json`
 - tasks.yml template: `skills-official/implement/tasks.template.yml`
 - Document-driven workflow: CLAUDE.md "基本開発フロー"
-- Validation layers: `~/.claude/validation/README.md`（概要）、`~/.claude/validation/gates/layer*.sh`（実装）
+- Validation layers: `/validate` スキル（レイヤー構成は `~/.claude/skills/validate/SKILL.md` の Layer Details 参照）

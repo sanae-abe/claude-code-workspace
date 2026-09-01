@@ -11,7 +11,7 @@ readonly SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 # Resolve the CALLING project's root (git toplevel, falling back to cwd) -
 # never the validate skill's own directory. Matches layer5_security.sh.
 readonly PROJECT_ROOT="${PROJECT_ROOT:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
-readonly SCHEMA_DIR="${HOME}/.claude/validation/schemas"
+readonly SCHEMA_DIR="${SCRIPT_DIR}/../schemas"
 readonly AUTO_FIX="${1:-false}"
 
 # State tracking
@@ -245,20 +245,39 @@ main() {
     log_info "Project root: $PROJECT_ROOT"
     log_info "Auto-fix mode: $AUTO_FIX"
 
-    # Check Python dependencies
-    if ! python3 -c "import yaml, json" 2>/dev/null; then
-        log_error "Required Python modules not found (yaml, json)"
-        log_error "Install with: pip3 install pyyaml"
-        return 1
-    fi
-
-    # File list to validate
-    local -a files=(
+    # Candidate file list
+    local -a candidates=(
         "$PROJECT_ROOT/tasks.yml"
         "$PROJECT_ROOT/.autoflow/SPRINTS.yml"
         "$PROJECT_ROOT/package.json"
         "$PROJECT_ROOT/tsconfig.json"
     )
+
+    # Keep only the files this project actually has, and note whether any of
+    # them is YAML. A Node or Rust project has no YAML here, so requiring
+    # PyYAML up front would fail the gate over a dependency it never uses.
+    local -a files=()
+    local needs_yaml=false
+    local candidate
+    for candidate in "${candidates[@]}"; do
+        [[ -f "$candidate" ]] || continue
+        files+=("$candidate")
+        case "$candidate" in
+            *.yml|*.yaml) needs_yaml=true ;;
+        esac
+    done
+
+    if ((${#files[@]} == 0)); then
+        log_info "No tasks.yml, SPRINTS.yml, package.json or tsconfig.json found (skipping Layer 1)"
+        return 0
+    fi
+
+    # Check Python dependencies for the file types actually present
+    if [[ "$needs_yaml" == "true" ]] && ! python3 -c "import yaml" 2>/dev/null; then
+        log_error "PyYAML is required to validate YAML files"
+        log_error "Install with: pip3 install pyyaml"
+        return 1
+    fi
 
     # Validate each file
     local file

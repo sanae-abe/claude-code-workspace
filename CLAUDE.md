@@ -245,18 +245,17 @@ ELSE:  # 実装系・最適化系agent
 
 **実装完了後の必須フロー**（順次実行）:
 ```
-1. Skill tool実行: `/validate --layers=syntax,security --auto-fix`
-   # Layer 1-2: 構文・フォーマット自動修正
+1. Skill tool実行: `/validate --layers=all --auto-fix`
+   # Layer 1-2: 型チェック・lint・フォーマット（自動修正）
+   # Layer 3-4: テスト実行・カバレッジ閾値
    # Layer 5: セキュリティ検証
-   # スキル未対応の場合: 言語標準のフォーマッター・リンターを直接実行
+   # 速度優先時のみ `--layers=syntax,security`（テストを省略）
+   # スキル未対応の場合: 言語標準の型チェッカー・リンター・テストを直接実行
    # IF 失敗 → エラー報告 → 修正要求 → SKIP 以下
 
-2. 型チェック実行 → 新規エラーあれば報告
-   # IF 型エラーあり → 修正要求 → SKIP 以下
+2. code-reviewer agent起動（PROACTIVE、全実装で必須）
 
-3. code-reviewer agent起動（PROACTIVE、全実装で必須）
-
-4. IF code-reviewer が test coverage 不足を指摘:
+3. IF code-reviewer が test coverage 不足を指摘:
        test-automator agent起動
 ```
 
@@ -289,9 +288,11 @@ ELSE:  # 実装系・最適化系agent
 #### 5層品質ゲートシステム
 
 **多層検証による段階的品質保証**（実行コマンドは「実装完了後の必須フロー」参照）:
-1. **Layer 1-2 (syntax)**: 構文・フォーマット（自動修正可能）
-2. **Layer 3-4 (integration)**: テストカバレッジ、API型整合性
-3. **Layer 5 (security)**: セキュリティ（最重要）- .env検出、認証情報スキャン、OWASP
+1. **Layer 1-2 (syntax)**: 型チェック・lint・フォーマット・YAML/JSON構文（lint/フォーマットは自動修正可能）
+2. **Layer 3-4 (integration)**: テスト実行・カバレッジ閾値（既定80%。カバレッジレポートが存在する場合のみ判定）
+3. **Layer 5 (security)**: セキュリティ（最重要）- .env検出、認証情報スキャン、インジェクション検出、依存脆弱性
+
+**対象**: Node / Rust / Python をマーカーファイルで自動検出。ツール・設定が無い検査は「スキップ」として報告され、成功扱いにはならない。
 
 **詳細**: `~/.claude/skills/validate/SKILL.md`
 

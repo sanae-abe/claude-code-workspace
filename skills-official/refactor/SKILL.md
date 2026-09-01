@@ -2,7 +2,7 @@
 name: refactor
 description: Safely refactor code files or components with incremental execution and validation. Use when asked to refactor, improve code quality, split a large file, reduce technical debt, or clean up implementation.
 argument-hint: "[file-path|component-name]"
-allowed-tools: Bash(npm run *) Bash(cargo *) Bash(pytest *) Bash(ruff *) Bash(mypy *) Bash(git status) Bash(git stash) Bash(git stash pop) Read Grep Edit AskUserQuestion Agent
+allowed-tools: Skill Bash(npm run *) Bash(npx *) Bash(cargo *) Bash(pytest *) Bash(ruff *) Bash(mypy *) Bash(git status) Bash(git stash) Bash(git stash pop) Read Grep Edit AskUserQuestion Agent
 model: sonnet
 ---
 
@@ -28,11 +28,10 @@ If validation fails: report error type and expected format, then exit
 1. Parse refactoring target from $ARGUMENTS
 2. Validate and sanitize inputs
 3. Check repository state with `git status` — if uncommitted changes exist, use AskUserQuestion to confirm stash or abort
-4. Detect project type from config files (see Quality Verification section)
-5. Analyze target and determine refactoring scope
-6. Create tasks with TodoWrite for incremental refactoring phases
-7. Execute refactoring with validation at each step
-8. Verify quality metrics and functionality preservation
+4. Analyze target and determine refactoring scope
+5. Create tasks with TodoWrite for incremental refactoring phases
+6. Execute refactoring with validation at each step
+7. Verify quality metrics and functionality preservation
 
 ## Refactoring Analysis
 
@@ -96,49 +95,35 @@ For technology-specific patterns, see External References section
 
 ### Validation at Each Step
 
-After each refactoring phase, run the checks appropriate for the detected project type:
+After each refactoring phase, invoke `/validate --layers=syntax,integration` via Skill tool.
+It detects the project type and runs type check, linter, formatter and tests for it.
 
-1. Type check — zero errors required (typecheck / cargo check / mypy)
-2. Linter — no new errors (lint / clippy / ruff)
-3. Tests — all existing tests must pass (test:run / cargo test / pytest)
-4. Build — must succeed (build / cargo build / N/A for Python)
+If /validate is unavailable, fall back to the per-toolchain commands directly:
+
+```
+package.json present → npm run typecheck / npm run lint / npm run test:run
+Cargo.toml present   → cargo check --all-features / cargo clippy -- -D warnings / cargo test
+pyproject.toml or setup.py present → mypy . / ruff check . / pytest
+```
+
+Build verification is not covered by /validate — run it separately after the final phase
+(`npm run build` / `cargo build`; not applicable to Python).
 
 If type check or build fails: stop refactoring, report "ERROR: Critical issues detected" with file:line references, and present recovery options.
 
 ## Quality Verification
 
-### Project Type Detection
-
-Detect project type from config files before running any checks:
-
-```
-package.json present → Node.js/TypeScript project
-  → npm run typecheck / npm run lint / npm run test:run / npm run build
-
-Cargo.toml present → Rust project
-  → cargo check --all-features / cargo clippy -- -D warnings / cargo test
-
-pyproject.toml or setup.py present → Python project
-  → ruff check . / mypy . / pytest
-
-Both package.json and Cargo.toml → run checks for both
-```
-
 ### Automated Quality Checks
 
-Run using Bash tool after all refactoring phases complete (commands vary by project type above):
+After all refactoring phases complete, invoke `/validate --layers=all` via Skill tool —
+this adds the security layer on top of the per-phase checks.
 
-If `typecheck` / `cargo check` / `mypy` fails: report error count with file:line references
+If /validate reports failures: report the error count with the file:line references from its output.
 
-Optional checks when available:
+Dependency hygiene is not covered by /validate — run these when the tools are available:
 ```bash
-# Node.js
-npm audit --production
-npx depcheck
-
-# Rust
-cargo audit
-cargo machete
+npx depcheck      # Node.js: unused dependencies
+cargo machete     # Rust: unused dependencies
 ```
 
 ### Final Checklist
@@ -193,7 +178,8 @@ For complex refactoring requiring deep analysis, use the refactoring-specialist 
 
 Agent: code analysis, impact assessment, complex refactoring delegation
 AskUserQuestion: refactoring approach selection, scope clarification
-Bash: quality checks, build verification
+Skill: invoke /validate for type check, lint, format and test verification
+Bash: build verification, dependency hygiene, fallback when /validate is unavailable
 Read: analyze existing code
 Edit: apply refactoring changes
 Grep: find usage patterns and dependencies
