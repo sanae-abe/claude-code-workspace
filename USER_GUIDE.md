@@ -144,9 +144,8 @@ code .claude/CLAUDE.md
 |---------|------|
 | `/branch` | Conventional Branch命名規則に従ったGitブランチ作成と対話的ガイダンス |
 | `/commit [message]` | 対話的ガイダンス・自動検証・絵文字フォーマットによる規約準拠コミット作成 |
-| `/pr` | 対話的ガイダンスと自動品質チェックによるGitHub PR作成 |
-| `/mr` | 対話的ガイダンスと自動品質チェックによるGitLab MR作成 |
-| `/review-mr <MR番号> [--detailed] [--security-focus] [--performance-focus] [--multi-perspective]` | GitLab MR/GitHub PRの包括的レビューワークフロー - セキュリティ最優先の体系的品質確認 |
+| `/ship [ブランチ名] [タイトル] [--skip-checks]` | GitHub PR / GitLab MR作成 - リモートURLからプラットフォームを自動判定、品質チェック後にドラフト作成 |
+| `/review-pr <PR/MR番号> [--detailed] [--security-focus] [--performance-focus] [--multi-perspective]` | GitLab MR/GitHub PRの包括的レビューワークフロー - セキュリティ最優先の体系的品質確認 |
 
 ### コード分析・ドキュメント
 
@@ -249,8 +248,8 @@ cldev lr problems
 # 4. コミット
 /commit
 
-# 5. PR作成
-/pr
+# 5. PR/MR作成
+/ship
 ```
 
 ### バグ修正フロー
@@ -265,9 +264,9 @@ cldev lr problems
 # 3. 検証
 /validate --layers=all
 
-# 4. コミット・PR
+# 4. コミット・PR/MR
 /commit
-/pr
+/ship
 ```
 
 ### パフォーマンス改善フロー
