@@ -1,0 +1,17 @@
+- id: task-1
+  goal: "Test with wrong enum values"
+  status: Done
+  acceptance_criteria:
+    - "Should normalize to DONE"
+
+- id: task-2
+  goal: "Another test"
+  status: "In Progress"
+  acceptance_criteria:
+    - "Should normalize to IN_PROGRESS"
+
+- id: task-3
+  goal: "Test pending"
+  status: pending
+  acceptance_criteria:
+    - "Should normalize to PENDING"

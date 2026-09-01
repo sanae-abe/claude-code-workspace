@@ -1,0 +1,7 @@
+```yaml
+- id: task-1
+  goal: "This has markdown code fence"
+  status: PENDING
+```
+
+This is a common mistake when copying YAML from documentation.

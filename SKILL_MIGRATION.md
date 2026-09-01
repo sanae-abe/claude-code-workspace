@@ -74,6 +74,29 @@ description: Create Conventional Commits with emoji formatting
 - 他プロジェクトでも `~/.claude/skills/` を直接利用可能
 - 関連ファイルも含めて自己完結型スキル構造
 
+### 4-2. ディレクトリ構造の再反転（2026-09-01追加）
+
+**背景**: §4 の構成では `skills-official/` が symlink の集合だったため、git が追跡するのは symlink（mode 120000）のみで **SKILL.md の中身がバージョン管理されていなかった**。スキルを編集しても `git status` はクリーンのままで、差分確認も revert もできない状態だった。
+
+**変更前**（§4 の構成）:
+- 実体: `~/.claude/skills/`
+- シンボリックリンク: `skills-official/ -> ~/.claude/skills/`
+- git 追跡: symlink のみ（内容は追跡外）
+
+**変更後**（現行）:
+- 実体: `skills-official/`（git 管理下、内容ごと追跡）
+- シンボリックリンク: `~/.claude/skills/skill-name -> skills-official/skill-name`
+- git 追跡: SKILL.md と関連ファイルすべて
+
+**利点**:
+- スキル内容がバージョン管理される（差分確認・revert・レビューが可能）
+- 既に同構成だった `deploy-customizearea-*` とパターンが統一される
+- `~/.claude/skills/` から読み込まれる動作は変わらない（symlink 経由）
+
+**付随変更**:
+- `validation/` の参照経路からリポジトリ→`~/.claude`→リポジトリの迂回を解消（`validation -> skills-official/validate/validation` の相対 symlink へ）
+- 移行前のフラット形式 `skills/*.md`（24ファイル）を削除。どこにもデプロイされていない残骸だった
+
 ### 5. 最終ディレクトリ構成
 
 ```
@@ -222,10 +245,11 @@ claude-code-workspace/
 
 ## 新しいスキルの追加方法
 
-1. **~/.claude/skills/ に直接作成**:
+1. **リポジトリ内に実ファイルとして作成**:
    ```bash
-   mkdir ~/.claude/skills/new-skill
-   cat > ~/.claude/skills/new-skill/SKILL.md <<'EOF'
+   REPO=~/projects/claude-code-workspace
+   mkdir -p "$REPO/skills-official/new-skill"
+   cat > "$REPO/skills-official/new-skill/SKILL.md" <<'EOF'
    ---
    name: new-skill
    description: New skill description
@@ -240,18 +264,23 @@ claude-code-workspace/
    EOF
    ```
 
-2. **プロジェクトからシンボリックリンク作成**（オプション）:
+2. **~/.claude/skills/ からシンボリックリンク作成**（必須 — これがないと Claude Code が読み込まない）:
    ```bash
-   cd /path/to/claude-code-workspace/skills-official
-   ln -s ~/.claude/skills/new-skill new-skill
-   git add new-skill
+   ln -s "$REPO/skills-official/new-skill" ~/.claude/skills/new-skill
    ```
 
 3. **関連ファイルの追加**:
    ```bash
-   # 関連ファイルはスキルディレクトリ内に配置
-   cp config.json ~/.claude/skills/new-skill/
+   # 関連ファイルはスキルディレクトリ内（リポジトリ側）に配置
+   cp config.json "$REPO/skills-official/new-skill/"
 
    # SKILL.mdから相対パスで参照
    # 例: `config.json` (同じディレクトリ内)
    ```
+
+4. **コミット**:
+   ```bash
+   cd "$REPO" && git add skills-official/new-skill && git commit
+   ```
+
+**注意**: 実体はリポジトリ側にある。`~/.claude/skills/new-skill/SKILL.md` を編集しても symlink 経由で同一ファイルを編集することになるが、パス指定は実体側（`skills-official/`）を使うこと。

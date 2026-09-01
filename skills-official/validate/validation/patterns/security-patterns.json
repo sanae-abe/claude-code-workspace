@@ -1,0 +1,78 @@
+{
+  "credentials": {
+    "patterns": [
+      "API_KEY\\s*=\\s*[\"'][A-Za-z0-9_-]+[\"']",
+      "SECRET\\s*=\\s*[\"'][^\"']+[\"']",
+      "PASSWORD\\s*=\\s*[\"'][^\"']+[\"']",
+      "password\\s*:\\s*[\"'][^\"']+[\"']",
+      "token\\s*=\\s*[\"'][A-Za-z0-9_-]+[\"']",
+      "AWS_ACCESS_KEY_ID\\s*=",
+      "AWS_SECRET_ACCESS_KEY\\s*=",
+      "PRIVATE_KEY\\s*=",
+      "-----BEGIN (RSA|DSA|EC|OPENSSH) PRIVATE KEY-----"
+    ],
+    "severity": "CRITICAL",
+    "description": "Hardcoded credentials detected"
+  },
+  "sql_injection": {
+    "patterns": [
+      "query\\s*=.*\\+.*",
+      "execute\\(.*\\+",
+      "WHERE.*\\+.*",
+      "SELECT.*\\$\\{",
+      "INSERT.*\\$\\{"
+    ],
+    "severity": "HIGH",
+    "description": "Potential SQL injection vulnerability"
+  },
+  "xss": {
+    "patterns": [
+      "dangerouslySetInnerHTML",
+      "v-html\\s*=",
+      "\\.innerHTML\\s*=",
+      "document\\.write\\(",
+      "eval\\("
+    ],
+    "severity": "HIGH",
+    "description": "Potential XSS vulnerability"
+  },
+  "command_injection": {
+    "patterns": [
+      "exec\\(.*\\$\\{",
+      "spawn\\(.*\\$\\{",
+      "system\\(.*\\$\\{",
+      "shell_exec\\("
+    ],
+    "severity": "CRITICAL",
+    "description": "Potential command injection vulnerability"
+  },
+  "path_traversal": {
+    "patterns": [
+      "readFile\\(.*\\.\\.\\)",
+      "require\\(.*\\.\\.\\)",
+      "include\\(.*\\.\\.",
+      "open\\(.*\\.\\."
+    ],
+    "severity": "HIGH",
+    "description": "Potential path traversal vulnerability"
+  },
+  "weak_crypto": {
+    "patterns": [
+      "crypto\\.createHash\\([\"']md5[\"']\\)",
+      "hashlib\\.md5\\(",
+      "crypto\\.createHash\\([\"']sha1[\"']\\)",
+      "hashlib\\.sha1\\("
+    ],
+    "severity": "MEDIUM",
+    "description": "Weak cryptographic algorithm in use"
+  },
+  "insecure_auth": {
+    "patterns": [
+      "auth.*=.*true",
+      "isAuthenticated\\s*=\\s*true",
+      "JWT_SECRET\\s*=\\s*[\"'][^\"']{1,16}[\"']"
+    ],
+    "severity": "HIGH",
+    "description": "Potential authentication bypass"
+  }
+}

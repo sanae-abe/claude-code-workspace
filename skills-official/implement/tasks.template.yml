@@ -1,0 +1,102 @@
+# Claude Code Tasks Template
+# Document-driven task management with automatic context injection
+
+project:
+  name: "New Project"
+  description: "Project description here"
+  total_tasks: 3
+  last_updated: "2025-01-13T00:00:00Z"
+
+tasks:
+  # Example 1: Implementation task with document references
+  - id: task-1
+    goal: "Implement user authentication system"
+    description: "Build JWT-based authentication with login/logout/refresh token functionality"
+    status: pending
+    priority: high
+    type: implementation
+    effort: 8h
+    
+    # Document references - automatically injected as context
+    docs:
+      - "docs/design.md#Authentication"
+      - "docs/api-spec.md#Auth-Endpoints"
+      - "docs/security.md#JWT-Implementation"
+    
+    # Acceptance criteria
+    acceptance_criteria:
+      - "User can login with email/password"
+      - "JWT token issued on successful login"
+      - "Token refresh endpoint working"
+      - "Logout invalidates token"
+      - "Protected routes return 401 for invalid tokens"
+    
+    # Dependencies
+    depends_on: []
+    
+    # Metadata (auto-filled during execution)
+    started_at: null
+    completed_at: null
+    assigned_to: null
+    blocked_reason: null
+    git_branch: null
+    git_commit: null
+
+  # Example 2: Test task
+  - id: task-2
+    goal: "Write unit tests for authentication"
+    description: "Achieve 90%+ test coverage for auth module"
+    status: pending
+    priority: high
+    type: test
+    effort: 4h
+    
+    docs:
+      - "docs/testing.md#Unit-Test-Standards"
+      - "docs/design.md#Authentication"
+    
+    acceptance_criteria:
+      - "All auth functions covered by unit tests"
+      - "Edge cases tested (invalid tokens, expired tokens, etc.)"
+      - "Test coverage >= 90%"
+      - "All tests passing"
+    
+    depends_on:
+      - task-1
+    
+    started_at: null
+    completed_at: null
+    assigned_to: null
+    blocked_reason: null
+    git_branch: null
+    git_commit: null
+
+  # Example 3: Refactoring task
+  - id: task-3
+    goal: "Refactor user service for better maintainability"
+    description: "Extract business logic from controllers, improve error handling"
+    status: pending
+    priority: medium
+    type: refactor
+    effort: 6h
+    
+    docs:
+      - "docs/architecture.md#Service-Layer"
+      - "docs/standards.md#Code-Quality"
+    
+    acceptance_criteria:
+      - "Business logic extracted to service layer"
+      - "Controllers only handle HTTP concerns"
+      - "Error handling consistent across all endpoints"
+      - "All existing tests still passing"
+      - "No regression in functionality"
+    
+    depends_on:
+      - task-2
+    
+    started_at: null
+    completed_at: null
+    assigned_to: null
+    blocked_reason: null
+    git_branch: null
+    git_commit: null

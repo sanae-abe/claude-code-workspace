@@ -452,7 +452,7 @@ development_methodology: tdd  # 開発手法（tdd / test-after）デフォル�
 **スキル構造（Claude Code公式形式）**:
 - **ディレクトリ型**: `~/.claude/skills/skill-name/SKILL.md` 形式必須
 - **Frontmatter**: `description` を必ず記載。`allowed-tools`, `argument-hint`, `model`, `disable-model-invocation` 等はオプション（仕様は slash-command-design.md 参照）
-- **配置**: `~/.claude/skills/skill-name/` に実ファイル（ソース管理: `~/projects/claude-code-workspace/skills-official/`）
+- **配置**: `~/projects/claude-code-workspace/skills-official/skill-name/` に実ファイル（git 管理下）。`~/.claude/skills/skill-name` はそこへの symlink — 編集時は実体パスを指定
 - **参考**: `~/.claude/skills/anthropic-skills/*/SKILL.md` （公式スキル例）
 - **設計指針**: `~/.claude/rules/slash-command-design.md`
 

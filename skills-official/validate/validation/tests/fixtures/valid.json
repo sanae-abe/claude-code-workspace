@@ -1,0 +1,12 @@
+{
+  "name": "test-project",
+  "version": "1.0.0",
+  "description": "Valid JSON fixture",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Test\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT"
+}

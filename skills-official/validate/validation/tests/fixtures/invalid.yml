@@ -1,0 +1,8 @@
+- id: task-1
+  goal: "Test invalid YAML"
+  status: PENDING
+  docs:
+    - "docs/design.md"
+  acceptance_criteria:
+    - "This should fail"
+  invalid_field: [missing closing bracket

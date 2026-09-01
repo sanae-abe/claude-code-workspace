@@ -1,0 +1,17 @@
+- id: task-1
+  goal: "Implement user authentication"
+  status: PENDING
+  docs:
+    - "docs/design.md#Authentication"
+  acceptance_criteria:
+    - "User can login with email and password"
+    - "Session is maintained across page refreshes"
+
+- id: task-2
+  goal: "Add profile page"
+  status: IN_PROGRESS
+  docs:
+    - "docs/design.md#Profile"
+  acceptance_criteria:
+    - "User can view their profile information"
+    - "User can edit their profile"
