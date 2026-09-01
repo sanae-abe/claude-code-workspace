@@ -202,8 +202,13 @@ cp ~/.claude/CLAUDE.md ~/.claude/CLAUDE.md.backup.$(date +%Y%m%d_%H%M%S)
 ### 設定の検証
 
 ```bash
-# リンク切れチェック
-~/.claude/scripts/validate-links.sh
+# リンク切れチェック（~/.claude/ 配下への参照が実在するか検証）
+cd ~/projects/claude-code-workspace && bash -c '
+shopt -s nullglob
+grep -rnoE "~/\.claude/[A-Za-z0-9._/-]+" --include="*.md" . | while IFS= read -r line; do
+  ref="~/${line#*:~/}"; p="${ref/#\~/$HOME}"
+  [ -e "$p" ] || echo "壊れた参照: $line"
+done'
 ```
 
 ## 学習記録の活用（cldev）

@@ -347,7 +347,7 @@ Run in order after completion:
 
 ## External References
 
-- tasks.yml schema: `~/.claude/schemas/tasks-schema.yml`
+- tasks.yml schema: `~/.claude/skills/implement/tasks.schema.json`
 - tasks.yml template: `skills-official/implement/tasks.template.yml`
 - Document-driven workflow: CLAUDE.md "基本開発フロー"
-- Validation layers: `~/.claude/validation/layers/*.md`
+- Validation layers: `~/.claude/validation/README.md`（概要）、`~/.claude/validation/gates/layer*.sh`（実装）

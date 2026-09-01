@@ -269,7 +269,7 @@ def is_path_allowed(file_path, restrictions):
 ## Usage in Slash Commands
 
 ```markdown
-# In slash command that uses Task tool
+# In slash command that uses the Agent tool
 
 ## Load Agent Metadata
 

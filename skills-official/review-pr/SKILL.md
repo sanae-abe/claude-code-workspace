@@ -170,8 +170,8 @@ Manual review checklist:
 - Dependencies: module separation follows existing patterns
 - Test coverage: new features and bug fixes have corresponding tests
 
-If `--security-focus`: additionally reference `~/.claude/validation/owasp-top10-checklist.md` for OWASP Top 10 compliance
-If `--multi-perspective`: spawn Task agents in parallel — code-reviewer and security-auditor — then aggregate findings
+If `--security-focus`: additionally reference `~/.claude/validation/patterns/security-patterns.json` — detection patterns for SQL injection, XSS, command injection, path traversal, weak crypto, insecure auth, and hardcoded credentials
+If `--multi-perspective`: spawn Agent subagents in parallel — code-reviewer and security-auditor — then aggregate findings
 If `--performance-focus`: spawn performance-engineer agent
 
 ## Phase 5: Report Generation

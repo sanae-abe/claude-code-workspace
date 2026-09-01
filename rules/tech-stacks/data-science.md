@@ -87,7 +87,7 @@ with mlflow.start_run(run_name="random_forest_v1"):
 - **Notebook**: Explanations in markdown cells
 - **Results Recording**: Experiment results, parameters, metrics
 
-Quality validation: See `~/.claude/validation/layers/syntax.md`
+Quality validation: See `~/.claude/validation/README.md`（5層品質ゲートの概要。構文層の実装は `gates/layer1_syntax.sh`）
 
 ## Data Security
 
@@ -97,7 +97,7 @@ Quality validation: See `~/.claude/validation/layers/syntax.md`
 - **Encryption**: Encrypted storage of sensitive data
 - **Audit Logging**: Mandatory recording of data access
 
-**PII Detection Patterns:** See `~/.claude/validation/security-patterns.json`
+**PII 検出パターンは未提供**。`~/.claude/validation/patterns/security-patterns.json` が持つのは認証情報（API キー・パスワード・秘密鍵）とインジェクション系（SQLi・XSS・コマンド・パストラバーサル）のパターンのみで、氏名・メール・住所等の PII 検出は含まない。PII の匿名化は上記の設計方針に従い個別に実装すること。
 
 ### Credential Management
 ```python

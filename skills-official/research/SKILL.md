@@ -42,8 +42,11 @@ For any WebFetch URL:
 
 ## Research Methodologies
 
-For detailed methodology patterns (Technology Comparison, Implementation Research, Trend Analysis), see:
-- `~/.claude/rules/tech-stacks/research-patterns.md`
+Apply the pattern matching the research type:
+
+- **Technology Comparison**: define evaluation axes first, then score each candidate on the same axes; record which axes were decisive
+- **Implementation Research**: locate the official docs, then at least one production example; note version drift between them
+- **Trend Analysis**: distinguish adoption signals (downloads, releases, maintainer activity) from opinion signals (blog posts, social)
 
 ## WebFetch/WebSearch Error Handling
 

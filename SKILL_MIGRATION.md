@@ -160,6 +160,7 @@ claude-code-workspace/
 - 他のスキル（decide, implement, todo）と同様の自己完結型構造
 - validation/ディレクトリもvalidateスキルに内包
 - 既存の参照パス（`~/.claude/validation`）も維持（シンボリックリンク経由）
+- 注: このsymlinkは一時期失われていた。2026-09-01に復旧済み
 
 **影響**:
 - validateスキルが完全に自己完結（validation/ディレクトリを含む）

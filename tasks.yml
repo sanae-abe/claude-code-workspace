@@ -135,7 +135,7 @@ tasks:
 
     docs:
       - "~/.claude/commands/task-validate.md"
-      - "~/.claude/validation/security-patterns.json"
+      - "~/.claude/validation/patterns/security-patterns.json"
 
     acceptance_criteria:
       - "✅ 複数rgスキャン → 単一マルチパターンスキャン（実装済み）"

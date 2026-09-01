@@ -46,7 +46,7 @@ cd ../worktree-bugfix-urgent
 
 ```bash
 # シンボリックリンクで有効化（既に実行済み）
-ln -s ~/projects/claude-code-workspace/commands/worktree.md ~/.claude/commands/worktree.md
+ln -s ~/projects/claude-code-workspace/skills-official/worktree ~/.claude/skills/worktree
 
 # コマンド確認
 /worktree
