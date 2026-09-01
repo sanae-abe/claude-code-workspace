@@ -24,13 +24,11 @@ Arguments: $ARGUMENTS
 Parse $ARGUMENTS to extract:
 - Task name (required, first token or quoted string)
 - --perspectives flag (optional, default: security,performance,maintainability)
-- --rounds flag (optional, default: 2, range: 1-5)
 - --format flag (optional, default: detailed, values: detailed|compact)
 
 Validation rules:
 - Task name: max 500 characters, reject control characters
 - Perspectives: validate against allowed list (security, performance, maintainability, accessibility, testing, documentation)
-- Rounds: must be integer 1-5
 - Format: must be "detailed" or "compact"
 
 Security validation (execute before any operations, using Bash tool):
@@ -64,7 +62,8 @@ Update status to "in_progress" before each step
 Update status to "completed" after each step
 
 Skill: Execute dependent skills:
-- /iterative-review <temp-file-basename> --skip-necessity --perspectives=<validated-perspectives> --rounds=<validated-rounds>
+- /iterative-review <temp-file-basename> --skip-necessity --perspectives=<validated-perspectives>
+- Round count is derived by /iterative-review from the perspective count; do not pass --rounds
 - Use only validated perspective values (already checked against allowed list)
 - Use basename of temp file, not absolute path
 - Never interpolate unvalidated variables into command
@@ -162,7 +161,6 @@ Compact format (--format=compact):
 Argument validation:
 If task name missing: use AskUserQuestion with prompt "Enter task description:"
 If invalid perspectives: report "Invalid perspective. Allowed: security, performance, maintainability, accessibility, testing, documentation"
-If invalid rounds: report "Invalid rounds value. Must be integer 1-5"
 If invalid format: report "Invalid format. Must be: detailed or compact"
 
 Execution errors:
@@ -191,7 +189,6 @@ Expected format:
 ```json
 {
   "defaultPerspectives": ["security", "performance", "maintainability"],
-  "defaultRounds": 2,
   "defaultFormat": "detailed",
   "autoUpdateTodo": true
 }
@@ -206,7 +203,7 @@ If config file exists:
 ## Examples
 
 Input: /plan-review "User authentication feature"
-Action: Create plan for authentication feature, review with default perspectives (security, performance, maintainability) for 2 rounds, append tasks to tasks.yml with detailed report
+Action: Create plan for authentication feature, review with default perspectives (security, performance, maintainability), append tasks to tasks.yml with detailed report
 
 Output tasks.yml:
 ```yaml
@@ -235,8 +232,8 @@ tasks:
 Input: /plan-review "API cache layer" --perspectives=security,performance
 Action: Create plan for cache layer, review with security and performance only, append tasks to tasks.yml
 
-Input: /plan-review "Button component refactor" --rounds=1 --format=compact
-Action: Create plan for refactor, quick 1-round review, append tasks to tasks.yml with compact summary
+Input: /plan-review "Button component refactor" --perspectives=maintainability --format=compact
+Action: Create plan for refactor, single-perspective review, append tasks to tasks.yml with compact summary
 
 Input: /plan-review
 Action: Use AskUserQuestion to collect task description, then execute with defaults
@@ -259,7 +256,7 @@ Action: Report error: "Invalid perspective. Allowed: security, performance, main
 ```
 ✓ Implementation plan created and reviewed
 ✓ Tasks added to tasks.yml: 3 new tasks
-✓ Review completed: 2 rounds
+✓ Review completed: 3 perspectives (security, performance, maintainability)
 
 Plan Summary:
   - Total tasks: 3

@@ -154,8 +154,8 @@ code .claude/CLAUDE.md
 | コマンド | 用途 |
 |---------|------|
 | `/todo [action] [description] \| add \| complete \| list \| sync \| project \| interactive` | Simple project task management with interactive UI and priority handling |
-| `/plan-review <task-name> [--perspectives=security,performance,maintainability] [--rounds=2] [--format=detailed\|compact]` | Create implementation plan, review with iterative-review, update todo.md |
-| `/iterative-review <target> [--rounds=4] [--perspectives=necessity,security,performance,maintainability] [--skip-necessity]` | Multi-perspective review analyzing necessity, security, performance, and maintainability |
+| `/plan-review <task-name> [--perspectives=security,performance,maintainability] [--format=detailed\|compact]` | Create implementation plan, review with iterative-review, update todo.md |
+| `/iterative-review <target\|--pr=N\|--mr=N> [--perspectives=necessity,security,performance,maintainability,accessibility,i18n,testing,documentation,consistency,scalability,simplicity] [--skip-necessity]` | Multi-perspective review analyzing necessity, security, performance, and maintainability |
 
 ### 研究・学習
 

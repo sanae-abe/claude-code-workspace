@@ -2,249 +2,300 @@
 name: worktree
 description: Git worktree management for parallel development workflows
 argument-hint: "[create|list|switch|merge|delete|status] [branch-name]"
-allowed-tools: Bash(git *) Read Write Edit Grep Glob TodoWrite AskUserQuestion
+allowed-tools: Bash(git *) TodoWrite AskUserQuestion
 model: sonnet
 disable-model-invocation: true
 ---
-
 
 # Worktree Management
 
 Arguments: $ARGUMENTS
 
+## Argument Parsing
+
+Parse $ARGUMENTS:
+- First token: subcommand — one of `create`, `list`, `switch`, `merge`, `delete`, `status`
+- Second token: branch name (required for `create`, `switch`, `merge`, `delete`)
+- Flags: `--from <base-branch>` (create), `--into <target-branch>` (merge), `--detailed` (list), `--force` (delete), `--no-delete` (merge), `--no-push` (merge)
+
+If no arguments: run the `list` subcommand, then print the usage hint from Error Handling.
+If the first token is not a known subcommand: report `ERROR: Unknown subcommand: <value>` with the usage hint, and stop.
+If a flag is not valid for the given subcommand: report `ERROR: Flag <flag> is not valid for <subcommand>` with the usage hint, and stop.
+
+## Argument Validation
+
+Run these checks yourself against the parsed values before issuing any git command. Each failure means: report the message and stop — do not run a git command, and do not continue to the next check.
+
+Checks 1-3 apply only when a branch name was given (`create`, `switch`, `merge`, `delete`, and the `--into` / `--from` values). Check 4 applies to every subcommand.
+
+If a subcommand that requires a branch name was given none: report `ERROR: <subcommand> requires a branch name` with the usage hint, and stop.
+
+1. Branch name matches `^[a-zA-Z0-9/_-]+$`
+   → else `ERROR: Invalid branch name. Use only: a-z A-Z 0-9 / _ -`
+2. Branch name contains no `..`
+   → else `ERROR: '..' not allowed in branch names`
+3. Branch name does not start with `-` (option injection)
+   → else `ERROR: Branch names cannot start with '-'`
+4. `git rev-parse --show-toplevel` succeeds
+   → else `ERROR: Not a git repository`
+
+## Path Derivation
+
+Derive the worktree path once, and pass that exact absolute path to every git command. Never pass a relative path such as `../worktree-<branch>` — the working directory may be a repository subdirectory, which would place the worktree somewhere other than the validated location.
+
+```
+REPO_ROOT    = output of `git rev-parse --show-toplevel`
+REPO_PARENT  = REPO_ROOT with its last path segment removed
+SLUG         = branch name with every "/" replaced by "-"
+WORKTREE_PATH = REPO_PARENT + "/worktree-" + SLUG
+```
+
+`SLUG` flattens slashes so that `feature/auth` yields `<REPO_PARENT>/worktree-feature-auth`, one level directly under `REPO_PARENT`. The branch name itself keeps its slashes.
+
+`git worktree add` refuses to write to an existing path, so an occupied path (including a symlink) surfaces as a git error — handle it per Error Handling rather than pre-checking.
+
+`WORKTREE_PATH` is the creation target for `create` only. For `switch`, `merge`, `delete`, and `status`, use `<listed-path>` — the path that `git worktree list --porcelain` reports for that branch — a worktree created outside this skill may sit elsewhere.
+
 ## Execution Flow
 
-**Common flow for ALL subcommands**:
-1. Parse subcommand and arguments from $ARGUMENTS
-2. **SECURITY: Validate inputs** (call validate_branch_name, validate_worktree_path)
-3. Check preconditions (git status, existing worktrees, etc.)
-4. Execute git operation with proper quoting (see Security Implementation)
-5. Verify result and provide user-actionable output
+Common flow for all subcommands:
+
+1. Parse the subcommand and arguments (see Argument Parsing)
+2. Run Argument Validation — stop on the first failure
+3. Resolve the worktree path (see Path Derivation): derive `WORKTREE_PATH` for `create`; read `<listed-path>` from `git worktree list --porcelain` for the others
+4. Check preconditions listed under the subcommand
+5. Execute the git commands, quoting every interpolated value
+6. Print the subcommand's output template
 
 ## Subcommands
 
 ### create <branch-name> [--from <base-branch>]
 
-Create new worktree for parallel development:
-
-1. Validate branch name (call validate_branch_name)
-2. Validate worktree path (call validate_worktree_path)
-3. Determine base branch (default: current branch or main)
-4. Create new branch and worktree with proper quoting:
+1. Determine the base branch: `--from` value, else the current branch (`git rev-parse --abbrev-ref HEAD`)
+2. Verify the branch does not already exist: `git rev-parse --verify "refs/heads/<branch>"`
+   - If it exists: stop and print the "branch exists" error (see Error Handling)
+3. Create the branch and worktree:
    ```bash
-   git worktree add -b "${BRANCH}" "../worktree-${BRANCH}" "${BASE_BRANCH}"
+   git worktree add -b "<branch>" "<WORKTREE_PATH>" "<base-branch>"
    ```
-5. Output worktree path and next steps
+4. Print the output template
 
-**Error handling**:
-- If branch exists: offer to switch instead
-- If path exists: suggest alternative path or cleanup
-- If git error: show error and suggest `git worktree list`
+**Output**:
+```
+Created worktree: /Users/.../worktree-feature-auth
+Branch: feature-auth (from main)
+
+Next steps:
+  cd /Users/.../worktree-feature-auth
+```
 
 ### list [--detailed]
 
-List all worktrees:
+1. Run `git worktree list --porcelain`
+2. Extract per entry: path, branch, lock status, and — only with `--detailed` — the commit hash
+3. Print the matching template
 
-1. Run `git worktree list --porcelain` for machine-readable output
-2. Parse output to extract:
-   - Worktree path
-   - Branch name
-   - Commit hash (if --detailed)
-   - Lock status
-3. Format as table with clear headers
-
-**Output format**:
+**Output (default)**:
 ```
-BRANCH              PATH                           STATUS
-main                /Users/.../project             (main)
-feature-auth        /Users/.../worktree-auth
-bugfix-login        /Users/.../worktree-login      locked
+BRANCH              PATH                              STATUS
+main                /Users/.../project                (current)
+feature-auth        /Users/.../worktree-feature-auth
+bugfix-login        /Users/.../worktree-bugfix-login  locked
+```
+
+**Output (--detailed)**:
+```
+BRANCH              COMMIT    PATH                              STATUS
+main                a1b2c3d   /Users/.../project                (current)
+feature-auth        e4f5a6b   /Users/.../worktree-feature-auth
+bugfix-login        c7d8e9f   /Users/.../worktree-bugfix-login  locked
 ```
 
 ### switch <branch-name>
 
-Switch to existing worktree:
+1. Run `git worktree list --porcelain` and find the entry for the branch
+2. If not found: stop and print the "worktree not found" error (see Error Handling)
+3. Print the output template
 
-1. List worktrees to find target branch
-2. If found: output `cd` command for user
-3. If not found: suggest creating with `create` subcommand
+A skill cannot change the parent shell's working directory — emit the `cd` command for the user to run.
 
-**Note**: Cannot change directory in parent shell, output instruction instead
-
-### merge <branch-name> [--no-delete]
-
-Merge worktree branch to main and cleanup:
-
-1. Verify worktree exists
-2. Check for uncommitted changes in worktree
-3. Switch to main branch in current directory
-4. Pull latest changes: `git pull origin main`
-5. Merge worktree branch: `git merge <branch-name>`
-6. If merge successful and no conflicts:
-   - Push to remote: `git push origin main`
-   - Unless --no-delete: delete worktree and branch
-7. If conflicts: halt and instruct user to resolve
-
-**Cleanup steps** (unless --no-delete):
-```bash
-git worktree remove "../worktree-${BRANCH}"
-git branch -d "${BRANCH}"
+**Output**:
 ```
+Worktree for 'feature-auth':
+
+  cd /Users/.../worktree-feature-auth
+```
+
+### merge <branch-name> [--into <target-branch>] [--no-push] [--no-delete]
+
+Track this subcommand with TodoWrite — it has multiple steps with irreversible effects.
+
+1. Verify the worktree exists (`git worktree list --porcelain`)
+   - If not found: stop and print the "worktree not found" error
+2. Check for uncommitted changes in the worktree:
+   `git -C "<listed-path>" status --porcelain`
+   - If any output: stop and print the "uncommitted changes" error. `merge` never discards or auto-commits work
+3. Determine the target branch, in order:
+   - `--into` value, if given
+   - else the branch checked out in the main worktree (first entry of `git worktree list --porcelain`)
+   - If that resolves to the branch being merged: stop and report `ERROR: Cannot merge 'X' into itself. Specify --into <target-branch>`
+4. Check out the target branch in the current directory: `git checkout "<target-branch>"`
+   - If it fails because of local changes: stop and print the "uncommitted changes" error for the current directory
+5. If the target branch has an upstream (`git rev-parse --abbrev-ref "<target>@{upstream}"` succeeds): `git pull --ff-only`
+   - If the pull fails: stop, report the git error, and suggest resolving the divergence manually
+6. Merge: `git merge --no-ff "<branch>"`
+7. If the merge conflicts:
+   - Run `git diff --name-only --diff-filter=U` and list every conflicting file
+   - Stop and print the "merge conflict" error. Do not push, delete, or abort on the user's behalf
+8. If the merge succeeded and `--no-push` was not given and the target has an upstream:
+   - Ask via AskUserQuestion whether to push to the upstream
+   - If declined: skip the push and note it in the output
+   - If accepted: `git push`
+9. Unless `--no-delete`:
+   ```bash
+   git worktree remove "<listed-path>"
+   git branch -d "<branch>"
+   ```
+10. Print the output template
+
+**Output**:
+```
+Merged 'feature-auth' into 'main'
+Pushed to origin/main
+Removed worktree: /Users/.../worktree-feature-auth
+Deleted branch: feature-auth
+```
+
+Omit any line for a step that was skipped, and append `(skipped: --no-push)` or `(skipped: --no-delete)` on its own line.
 
 ### delete <branch-name> [--force]
 
-Remove worktree and branch:
+1. Verify the worktree exists (`git worktree list --porcelain`)
+   - If not found: stop and print the "worktree not found" error
+2. Check for uncommitted changes: `git -C "<listed-path>" status --porcelain`
+3. If there are uncommitted changes and `--force` was not given:
+   - Ask via AskUserQuestion: delete anyway, or cancel
+   - If the user cancels: report `Deletion cancelled. No changes were made.` and stop
+4. Remove the worktree — exactly one of:
+   - No uncommitted changes: `git worktree remove "<listed-path>"`
+   - `--force` given, or the user confirmed at step 3: `git worktree remove --force "<listed-path>"`
+5. Delete the branch:
+   - `git branch -d "<branch>"`, or `git branch -D "<branch>"` when `--force` was given or the user confirmed
+   - If `-d` fails because the branch is unmerged: report it and suggest `--force`
+6. Print the output template
 
-1. Verify worktree exists
-2. Check for uncommitted changes
-3. If uncommitted changes and not --force:
-   - Warn user and ask for confirmation via AskUserQuestion
-4. Remove worktree: `git worktree remove <path>`
-5. If --force or confirmed: `git worktree remove --force <path>`
-6. Delete branch: `git branch -d <branch-name>` (or `-D` if --force)
+**Output**:
+```
+Removed worktree: /Users/.../worktree-feature-auth
+Deleted branch: feature-auth
+```
 
 ### status
 
-Show comprehensive worktree status:
+Track this subcommand with TodoWrite — one item per worktree inspected.
 
-1. List all worktrees with TodoWrite tracking:
-   - For each worktree: check git status
-   - Count uncommitted changes
-   - Check if branch is ahead/behind remote
-2. Output summary:
-   - Total worktrees
-   - Worktrees with uncommitted changes
-   - Worktrees ahead/behind remote
-   - Locked worktrees
+1. Run `git worktree list --porcelain` to enumerate worktrees
+2. For each worktree, in a single Bash call per worktree so the calls run concurrently:
+   - `git -C "<path>" status --porcelain` → count of uncommitted changes
+   - `git -C "<path>" rev-list --left-right --count "@{upstream}...HEAD"` → behind/ahead counts (skip when there is no upstream)
+3. Print the output template
+
+**Output**:
+```
+Worktrees: 3
+  With uncommitted changes: 1
+  Ahead of remote: 2
+  Behind remote: 0
+  Locked: 1
+
+BRANCH              CHANGES  AHEAD  BEHIND  STATUS
+main                0        0      0
+feature-auth        4        2      0
+bugfix-login        0        0      0       locked
+```
 
 ## Tool Usage
 
-**TodoWrite**: Use for multi-step operations (merge, delete with conflicts)
+**TodoWrite**: `merge` and `status` (both are multi-step); also `delete` once a confirmation branch is entered.
 
-**AskUserQuestion**: Use when:
-- Uncommitted changes detected (confirm deletion)
-- Merge conflicts require user decision
-- Ambiguous arguments (multiple matches)
-
-## Security Implementation
-
-**MANDATORY: Execute these validations BEFORE ANY git command**
-
-```bash
-validate_branch_name() {
-  local branch_name="$1"
-
-  # Check allowed characters
-  if [[ ! "$branch_name" =~ ^[a-zA-Z0-9/_-]+$ ]]; then
-    echo "ERROR: Invalid branch name. Use only: a-z A-Z 0-9 / _ -"
-    exit 1
-  fi
-
-  # Prevent directory traversal
-  if [[ "$branch_name" =~ \.\. ]]; then
-    echo "ERROR: '..' not allowed in branch names"
-    exit 1
-  fi
-
-  # Prevent branch names starting with dash (option injection)
-  if [[ "$branch_name" =~ ^- ]]; then
-    echo "ERROR: Branch names cannot start with '-'"
-    exit 1
-  fi
-}
-
-validate_worktree_path() {
-  local branch_name="$1"
-  local repo_parent
-
-  # Get repository root
-  repo_parent=$(git rev-parse --show-toplevel 2>/dev/null)
-  if [[ -z "$repo_parent" ]]; then
-    echo "ERROR: Not a git repository"
-    exit 1
-  fi
-
-  # Worktree must be in parent directory of repo
-  repo_parent=$(dirname "$repo_parent")
-  local worktree_path="${repo_parent}/worktree-${branch_name}"
-
-  # Verify path is directly under repo parent (no subdirectories)
-  if [[ "$(dirname "$worktree_path")" != "$repo_parent" ]]; then
-    echo "ERROR: Worktree must be in repository parent directory"
-    exit 1
-  fi
-
-  # Reject symbolic links
-  if [[ -e "$worktree_path" && -L "$worktree_path" ]]; then
-    echo "ERROR: Worktree path cannot be a symbolic link"
-    exit 1
-  fi
-}
-```
-
-**Safe git command execution**:
-```bash
-# After validation, always use proper quoting
-git worktree add -b "${BRANCH}" "../worktree-${BRANCH}" "${BASE_BRANCH}"
-
-# NEVER use unquoted variables:
-# ❌ git worktree add -b $BRANCH ../worktree-$BRANCH $BASE_BRANCH
-```
+**AskUserQuestion**: use when — and only when —
+- deleting a worktree that has uncommitted changes without `--force`
+- confirming a push to a remote during `merge`
 
 ## Error Handling
 
-**Git errors**:
-- Branch already exists: suggest `switch` or use different name
-- Worktree path exists: offer cleanup or alternative path
-- No worktrees found: suggest creating first worktree
-- Uncommitted changes: warn and require --force or confirmation
+Report the error, then stop. Never include shell output, stack traces, or internal skill paths in an error message; worktree and repository paths are the operative data of this skill and are shown deliberately.
 
-**File system errors**:
-- Permission denied: check directory permissions
-- Disk full: report error and suggest cleanup
-- Path too long: suggest shorter branch name
+| Condition | Message | Suggestions |
+|---|---|---|
+| Branch already exists | `ERROR: Branch '<branch>' already exists` | switch to it, use a different name, or delete it |
+| Worktree not found | `ERROR: No worktree found for branch '<branch>'` | `/worktree list`, or `/worktree create <branch>` |
+| Worktree path occupied | `ERROR: Path already exists: <WORKTREE_PATH>` | remove the directory, or use a different branch name |
+| Uncommitted changes | `ERROR: Uncommitted changes in <path>` | commit, stash, or re-run with `--force` (delete only) |
+| Merge conflict | `ERROR: Merge conflict in <n> file(s)` | list each conflicting file, then resolve and commit, or `git merge --abort` |
+| No worktrees | `No worktrees found.` | `/worktree create <branch-name>` |
+| Permission denied | `ERROR: Permission denied writing to <path>` | check directory permissions |
+| Disk full | `ERROR: Not enough disk space` | free space, or delete unused worktrees |
+| Path too long | `ERROR: Worktree path exceeds the filesystem limit` | use a shorter branch name |
 
-**User-actionable error format**:
+**Error output template** — used for every row above:
+
 ```
-Error: Branch 'feature-auth' already exists
+ERROR: Branch 'feature-auth' already exists
 
 Suggestions:
 1. Switch to existing worktree: /worktree switch feature-auth
-2. Use different branch name: /worktree create feature-auth-v2
-3. Delete existing: /worktree delete feature-auth
+2. Use a different branch name:  /worktree create feature-auth-v2
+3. Delete the existing one:      /worktree delete feature-auth
 ```
 
+**Usage hint**:
 
-## Output Format Examples
-
-**Success example**:
 ```
-✓ Created worktree: ../worktree-feature-name
-✓ Branch: feature-name (from main)
+Usage: /worktree [create|list|switch|merge|delete|status] [branch-name]
 
-Next steps:
-  cd ../worktree-feature-name
-  # Start development
-```
-
-**Error example**:
-```
-ERROR: Branch 'feature-name' already exists
-
-Suggestions:
-1. Switch to existing: /worktree switch feature-name
-2. Use different name: /worktree create feature-name-v2
-3. Delete existing: /worktree delete feature-name
+  create <branch> [--from <base>]                    Create a worktree and branch
+  list [--detailed]                                  List worktrees
+  switch <branch>                                    Print the cd command
+  merge <branch> [--into <b>] [--no-push] [--no-delete]  Merge and clean up
+  delete <branch> [--force]                          Remove worktree and branch
+  status                                             Per-worktree change summary
 ```
 
-## Performance Notes
+## Examples
 
-- Use parallel execution when checking status of multiple worktrees
-- Minimize git command calls where possible
+```
+/worktree create feature-auth --from develop
+→ Creates <REPO_PARENT>/worktree-feature-auth on a new branch off develop
 
-## Argument Parsing
+/worktree create feature/auth
+→ Branch feature/auth, directory <REPO_PARENT>/worktree-feature-auth (slash flattened)
 
-- First argument: subcommand (create, list, switch, merge, delete, status)
-- Remaining arguments: subcommand-specific
-- Flags: `--force`, `--detailed`, `--from`, `--no-delete`
-- **No arguments**: Show `list` output and usage hint
+/worktree list --detailed
+→ Table with the commit hash column
+
+/worktree merge feature-auth
+→ TodoWrite-tracked: checkout target, pull, merge, AskUserQuestion before push, clean up
+
+/worktree
+→ list output, followed by the usage hint
+```
+
+Error cases:
+
+```
+/worktree create -bad
+→ ERROR: Branch names cannot start with '-'
+
+/worktree create ../escape
+→ ERROR: Invalid branch name. Use only: a-z A-Z 0-9 / _ -
+
+/worktree switch nope
+→ ERROR: No worktree found for branch 'nope'
+
+/worktree delete feature-auth        (with uncommitted changes)
+→ AskUserQuestion: delete anyway or cancel; on cancel, nothing is removed
+
+/worktree rebase feature-auth
+→ ERROR: Unknown subcommand: rebase
+```

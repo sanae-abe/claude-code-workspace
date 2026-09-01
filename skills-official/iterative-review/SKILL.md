@@ -1,6 +1,8 @@
 ---
 name: iterative-review
 description: Multi-perspective review analyzing necessity, security, performance, and maintainability
+argument-hint: "<target> [--perspectives=list] [--skip-necessity] [--mr=N|--pr=N]"
+allowed-tools: Read Grep Glob TodoWrite AskUserQuestion Bash(gh pr view *) Bash(gh pr diff *) Bash(glab mr view *) Bash(glab mr diff *)
 ---
 
 # Iterative Review System
@@ -11,82 +13,72 @@ Review Target: $ARGUMENTS
 
 Review code, configuration, or documentation from multiple perspectives to discover issues overlooked from single viewpoints. By default, includes Round 0 "Necessity Review" that questions whether features should exist at all before proposing improvements.
 
-## Quick Start
+## Perspectives
 
-```bash
-/iterative-review src/components/Button.tsx
-/iterative-review README.md
-/iterative-review file.ts --perspectives=necessity --rounds=1
-/iterative-review file.ts --skip-necessity
-/iterative-review file.ts --perspectives=necessity,security,accessibility
-/iterative-review src/components/
-/iterative-review --mr 123
-/iterative-review --pr 456
-```
-
-## Allowed Perspectives
-
-**Default perspectives** (4 total):
-- necessity, security, performance, maintainability
-
-**Optional perspectives** (7 total):
-- accessibility, i18n, testing, documentation, consistency, scalability, simplicity
-
-**Complete list** (for validation):
+**Complete list** — the single source of truth for validation:
 necessity, security, performance, maintainability, accessibility, i18n, testing, documentation, consistency, scalability, simplicity
+
+**Default set** (applied when `--perspectives` is absent):
+necessity, security, performance, maintainability
+
+The first four are defined inline under Review Perspective Definitions. The
+remaining seven are defined in `${CLAUDE_SKILL_DIR}/perspectives.md` — read that
+file only when the resolved perspective list contains at least one of them.
 
 ## Argument Validation and Parsing
 
-Parse $ARGUMENTS before execution.
-
-**Default values**:
-- rounds: 4
-- perspectives: necessity,security,performance,maintainability
-- skip-necessity: false
-- Max MR/PR requests per day: 10
-- Max MR/PR number: 999999
+Parse $ARGUMENTS before execution. Reject unknown flags.
 
 **Target extraction**:
 - First non-flag argument is the target (file path or directory)
-- File path: allow only characters `[a-zA-Z0-9/_.-]`; reject `..`, `%2e%2e`, `%252e` (path traversal)
-- MR/PR: via `--mr=N` or `--pr=N` flag; validate range 1–999999 and daily rate limit
+- File path: allow only characters `[a-zA-Z0-9/_.~-]`; reject `..`, `%2e%2e`, `%252e` (path traversal). A leading `~` is expanded to the home directory after validation
+- MR/PR: via `--mr=N` (GitLab) or `--pr=N` (GitHub); N is an integer in range 1–999999. These flags replace the file-path target; supplying both a path and `--mr`/`--pr` is an error
 
 **Optional flags**:
-- `--rounds=N`: positive integer
-- `--perspectives=list`: comma-separated list validated against the complete list above
-- `--skip-necessity`: removes "necessity" from perspectives; sets rounds to 3 (unless explicitly overridden)
+- `--perspectives=list`: comma-separated, validated against the complete list above
+- `--skip-necessity`: removes `necessity` from the resolved perspective list. If `necessity` is not present, the flag has no effect and is not an error
+- `--rounds=N`: accepted for backward compatibility and **ignored**. Round count is always derived — see Round Count below
 
-**Interactive mode**: If no target provided, use AskUserQuestion to select target type (File/Directory/MR/PR)
+**Round count** (derived, never configured):
+
+```
+rounds = number of perspectives in the resolved list
+```
+
+Round numbers are assigned by position in the resolved list. `necessity`, when
+present, is always Round 0 and is evaluated first; the remaining perspectives take
+Rounds 1..N in the order given. If `--rounds=N` was supplied and N differs from
+the derived count, proceed with the derived count and add one line to the report:
+`Note: --rounds=[N] ignored; [derived] perspectives selected.`
+
+**Interactive mode**: If no target and no `--mr`/`--pr` is provided, use AskUserQuestion to select target type (File/Directory/MR/PR)
 
 **Security requirements**:
 - Reject paths with traversal patterns before processing
-- Reject unknown flags
-- Never pass unsanitized input to Bash commands
-- Use Grep/Glob/Read tools instead of Bash for file operations
+- Use Grep/Glob/Read for all file operations — never Bash
+- Bash is permitted only for the MR/PR fetch commands listed under Fetching an MR/PR, with the number passed as a validated integer
+- Never interpolate unvalidated input into a Bash command
 
 ## Error Handling
 
 On any validation or execution failure:
 1. Report error type and user-actionable guidance (no stack traces or internal paths)
 2. Use TodoWrite to mark the current task as failed
-3. Stop execution
+3. Stop, unless the outcome below says otherwise
 
-**Error categories**:
-- Target missing: use AskUserQuestion (interactive mode)
-- Invalid rounds: `"rounds must be positive integer, got: [value]"`
-- Invalid perspective: `"invalid perspective '[value]'. Allowed: [complete list from Allowed Perspectives section]"`
-- Path traversal: `"invalid path: security validation failed"`
-- File read fails: `"review operation failed - verify target path"`
-- MR/PR daily limit exceeded: `"Daily MR/PR request limit exceeded (max: 10 per day, resets at midnight)"`
+**Error categories and outcomes**:
 
-**Exit codes**:
-
-| Code | Meaning | Action |
-|------|---------|--------|
-| 0 | Success | Mark task completed, continue |
-| 1 | User error (invalid input) | Report error, mark failed, stop |
-| 2 | Security error (path traversal) | Report error, mark failed, stop |
-| 3 | System error (tool failure) | Report error, mark failed, suggest retry |
+| Category | Message | Outcome |
+|----------|---------|---------|
+| Target missing | — | Enter interactive mode (AskUserQuestion) |
+| Invalid perspective | `invalid perspective '[value]'. Allowed: [complete list from Perspectives section]` | Report, mark failed, stop |
+| Unknown flag | `unknown flag: [value]` | Report, mark failed, stop |
+| Conflicting target | `specify either a path or --mr/--pr, not both` | Report, mark failed, stop |
+| Invalid MR/PR number | `--mr/--pr must be an integer in 1-999999, got: [value]` | Report, mark failed, stop |
+| Path traversal | `invalid path: security validation failed` | Report, mark failed, stop |
+| File read fails | `review operation failed - verify target path` | Report, mark failed, stop |
+| MR/PR fetch fails | `could not fetch [mr/pr] [N] - verify the number and repository access` | Report, mark failed, suggest retry |
+| Missing CLI | `[gh/glab] not found - install it or review a local path instead` | Report, mark failed, stop |
 
 Never silently fail. Always update task status before stopping.
 
@@ -103,15 +95,16 @@ As an experienced senior engineer, iteratively review targets from multiple expe
 
 Use TodoWrite to track progress:
 1. Parse and validate arguments from $ARGUMENTS
-2. Identify target (file/directory/MR/PR)
-3. Determine perspectives (apply defaults or parse custom list)
-4. Apply --skip-necessity if specified (remove necessity from perspectives, set rounds=3)
-5. Create tasks for all review rounds via TodoWrite
-6. Execute each perspective review sequentially
-7. Update task status via TodoWrite after each round completes
-8. Generate integrated report
+2. Identify target (file/directory/MR/PR); fetch MR/PR content if applicable
+3. Resolve the perspective list (defaults or `--perspectives`), then apply `--skip-necessity`
+4. Derive the round count and assign round numbers per Round Count
+5. If the resolved list contains any optional perspective, read `${CLAUDE_SKILL_DIR}/perspectives.md`
+6. Create one TodoWrite task per round
+7. Execute each perspective review in round order
+8. Update task status via TodoWrite after each round completes
+9. Generate the integrated report
 
-## Large File Handling Strategy
+## Reading the Target
 
 **Read tool limit**: 2000 lines per call.
 
@@ -120,11 +113,32 @@ For files >2000 lines, use chunked reading:
 - Next chunk: offset=2000, limit=2000
 - Continue until EOF (when fewer lines than limit are returned)
 
-Apply to: Security, Performance, Maintainability perspectives.
+Apply to every perspective that reads the target, including necessity.
+
+For directory targets, use Glob to enumerate files, then apply the same strategy per file.
+
+### Fetching an MR/PR
+
+Check the CLI exists before use; if absent, report the Missing CLI error.
+
+GitHub (`--pr=N`):
+```bash
+gh pr view N
+gh pr diff N
+```
+
+GitLab (`--mr=N`):
+```bash
+glab mr view N
+glab mr diff N
+```
+
+N is the validated integer only — never a raw argument string. Review the returned
+diff as the target; `file:line` references come from the diff headers.
 
 ## Review Perspective Definitions
 
-### Round 0: Necessity Review
+### Necessity (Round 0)
 
 Purpose: Eliminate status quo bias. Ask "is this even needed?" not "how to improve it."
 
@@ -159,7 +173,7 @@ Required check items:
 - Recommend simplification: "Current implementation is excessive. Should narrow to [X feature] only"
 - Justified retention: "Clear value exists. However, [Y] improvement needed"
 
-### Round 1: Security Perspective
+### Security
 
 Key check items:
 - **Input validation**: Proper validation of all user input
@@ -168,9 +182,14 @@ Key check items:
 - **Sensitive information**: Hardcoded secrets, API keys, etc.
 - Encrypted communication: HTTPS/TLS usage, sensitive data protection
 - Dependencies: Libraries with known vulnerabilities
-- OWASP compliance: Response to each OWASP Top 10 item
 
-Analysis methods — use Claude Code tools (NOT Bash commands):
+Authority for the detailed criteria — read the file matching the target's stack
+rather than restating its rules here:
+`~/.claude/rules/tech-stacks/backend-api.md` (OWASP API Top 10, authn/authz,
+injection), `~/.claude/rules/tech-stacks/frontend-web.md` (XSS, CSP, token
+storage), `~/.claude/rules/tech-stacks/shell-cli.md` (18 shell security items).
+
+Analysis methods — use Claude Code tools:
 
 ```markdown
 # Search for sensitive information
@@ -180,18 +199,20 @@ Grep tool with pattern: "password|api_key|secret|token" (case-insensitive)
 Grep tool with pattern: "dangerouslySetInnerHTML|eval\(|Function\(|execSync"
 ```
 
-For files >2000 lines: see Large File Handling Strategy.
-
-### Round 2: Performance Perspective
+### Performance
 
 Key check items:
 - **Computational complexity**: Algorithm time/space complexity
 - **N+1 problem**: Database queries, API calls in loops
 - **Memory leaks**: Proper cleanup of event listeners, timers
 - **Bundle size**: Unnecessary dependencies, Tree Shaking optimization
-- Rendering: React optimization (useMemo, useCallback)
+- Rendering: framework-level optimization
 - Async processing: Proper use of Promise, async/await
 - Caching: Implementation of appropriate cache strategies
+
+Authority for budgets and thresholds:
+`~/.claude/rules/tech-stacks/frontend-web.md` (Core Web Vitals, bundle budgets),
+`~/.claude/rules/tech-stacks/backend-api.md` (response-time targets, N+1, pooling).
 
 Analysis methods — use Claude Code tools:
 
@@ -203,15 +224,13 @@ Grep tool with pattern: "for.*await|while.*await|\.map\(async"
 Glob tool with pattern: "**/*.{ts,tsx}" → then Read tool to examine each
 ```
 
-For files >2000 lines: see Large File Handling Strategy.
-
-### Round 3: Maintainability Perspective
+### Maintainability
 
 Key check items:
 - **Single responsibility principle**: Clarity of each function/component responsibility
 - **DRY principle**: Code duplication, abstraction appropriateness
 - **Naming conventions**: Consistency, self-documenting naming
-- **Type safety**: TypeScript strict mode, type inference utilization
+- **Type safety**: strict mode enabled, type inference utilized, escape hatches avoided
 - Testability: Unit test ease, dependency injection
 - Documentation: Comments, JSDoc, README appropriateness
 - Error handling: Exception handling, error message quality
@@ -226,46 +245,33 @@ Grep tool with pattern: ": any|as any" (type: typescript)
 Grep tool with pattern: "function.*\{" (type: typescript)
 ```
 
-For files >2000 lines: see Large File Handling Strategy.
+## Mode Selection
 
-## Review Mode Selection
+`necessity` is included by default. Decide whether to keep it:
 
-**Default mode** (with Round 0 — Zero-Based Thinking):
-- 4 rounds: necessity, security, performance, maintainability
-- Actively considers deletion/simplification
-- Best for: new feature proposals, existing feature inventory, CLAUDE.md review, preventing feature bloat
-
-**Constructive mode** (`--skip-necessity`):
-- 3 rounds: security, performance, maintainability
-- Proposes improvements only
-- Best for: features with proven value, features under active development, security/performance improvement purposes
-
-## Perspective Customization
-
-Perspectives other than defaults can be specified. See Allowed Perspectives section for the complete list.
-
-```bash
-# Accessibility + i18n focus
-/iterative-review components/ --perspectives=accessibility,i18n
-
-# Comprehensive 5-perspective review
-/iterative-review src/ --perspectives=necessity,security,performance,maintainability,testing
+```
+IF --skip-necessity supplied:
+    remove necessity
+ELIF target is under active development, has proven production value,
+     or the request names a specific concern (security/performance/etc.):
+    suggest --skip-necessity in the report's Overall Observations; still run necessity
+ELSE:
+    keep necessity (new proposals, feature inventory, CLAUDE.md and skill review,
+    anything at risk of feature bloat)
 ```
 
-## Target-Specific Reviews
+## Target-Specific Additional Checks
 
-### Document Review (.md)
+Apply in addition to the selected perspectives, based on the target's type.
 
-Additional check items:
+**Documents (.md)**:
 - Structure: Hierarchy, table of contents, section division
 - Links: Broken internal links, external link validity
 - Consistency: Term unification, format unification
 - Completeness: Sufficiency/excess of necessary information
 - Currency: Old information, date appropriateness
 
-### Configuration File Review (CLAUDE.md, etc.)
-
-Additional check items:
+**Configuration and instruction files (CLAUDE.md, SKILL.md, rules/*.md)**:
 - Practicality: Actually usable commands/procedures
 - Maintainability: Bloat, duplication, organization status
 - Learning curve: Ease of understanding for new users
@@ -273,70 +279,87 @@ Additional check items:
 
 ## Integrated Report Format
 
-After all rounds complete, generate an integrated report. Format varies based on --skip-necessity flag.
-
-### Default Mode (with Round 0)
+After all rounds complete, generate one report using the template below. The
+round sections are generated from the resolved perspective list — one section per
+perspective, in round order.
 
 ```markdown
 # Iterative Review Results
 
 ## Basic Information
-- Target: [filename/directory/MR number]
+- Target: [file path / directory / MR or PR number]
 - Type: [TypeScript/Python/Document, etc.]
 - Review Date/Time: [YYYY-MM-DD HH:MM]
-- Number of Perspectives: 4 (necessity, security, performance, maintainability)
+- Perspectives: [count] ([comma-separated resolved list])
+[- Mode: Constructive Review (necessity evaluation skipped)   ← only when necessity is absent]
+[- Note: --rounds=[N] ignored; [derived] perspectives selected.  ← only when --rounds was supplied and differed]
 
-## Round 0: Necessity Review
-
-### Final Decision: Recommend Deletion / Recommend Simplification / Justified Retention
-Reason: [Specific justification]
-Alternative: [Specific alternative means if deletion/simplification recommended]
-
-## Round 1: Security Perspective
-[Findings and recommended actions]
-
-## Round 2: Performance Perspective
-[Findings and recommended actions]
-
-## Round 3: Maintainability Perspective
-[Findings and recommended actions]
+## Round [i]: [Perspective]
+[Findings and recommended actions, each with file:line]
+... one section per perspective, in round order ...
 
 ## Overall Evaluation
 
-### Round 0 Decision Result
+### Necessity Decision            ← only when necessity was evaluated
 Recommend Deletion / Recommend Simplification / Justified Retention
+Reason: [specific justification]
+Alternative: [specific alternative means if deletion/simplification recommended]
 
-Note: If Round 0 recommends deletion, subsequent rounds are treated as reference only.
+Note: If necessity recommends deletion, subsequent rounds are reference only.
+
+### Findings Summary
+- Critical: [X items]
+- Important: [Y items]
+- Minor: [Z items]
 
 ### Priority Action Plan
-High Priority (Critical Issues): [file:line references]
-Medium Priority (Important Issues): [specific actions]
-Low Priority (Minor Improvements): [optional]
+High Priority (Critical Issues): [file:line] — [specific action]
+Medium Priority (Important Issues): [file:line] — [specific action]
+Low Priority (Minor Improvements): [file:line] — [specific action]
 
 ### Overall Observations
 [Comprehensive improvement direction]
 ```
 
-### Constructive Mode (--skip-necessity)
-
-Same structure, omitting Round 0 section. Additional header field:
-- `Mode: Constructive Review (necessity evaluation skipped)`
-
-Add Findings Summary before Priority Action Plan:
-- Critical: [X items]
-- Important: [Y items]
-- Minor: [Z items]
+Every priority level carries `file:line` references. For MR/PR targets, derive
+them from the diff headers.
 
 ## Examples
 
 Input: `/iterative-review src/components/Button.tsx`
-Action: Execute 4-round review (necessity, security, performance, maintainability) on Button.tsx
+Action: 4 rounds (necessity, security, performance, maintainability) on Button.tsx
 
 Input: `/iterative-review src/ --skip-necessity`
-Action: Execute 3-round review (security, performance, maintainability) on src directory
+Action: 3 rounds (security, performance, maintainability) on the src directory
 
-Input: `/iterative-review feature.ts --perspectives=necessity --rounds=1`
-Action: Execute necessity review only on feature.ts
+Input: `/iterative-review feature.ts --perspectives=necessity`
+Action: 1 round (necessity) on feature.ts
+
+Input: `/iterative-review components/ --perspectives=accessibility,i18n`
+Action: Read `${CLAUDE_SKILL_DIR}/perspectives.md`, then 2 rounds on components/
+
+Input: `/iterative-review --pr=456`
+Action: `gh pr view 456` + `gh pr diff 456`, then 4 default rounds on the diff
 
 Input: `/iterative-review`
-Action: Interactive mode, use AskUserQuestion to select target
+Action: Interactive mode, use AskUserQuestion to select target type
+
+Error cases:
+
+Input: `/iterative-review file.ts --perspectives=perf`
+Action: `ERROR: invalid perspective 'perf'. Allowed: necessity, security, performance, maintainability, accessibility, i18n, testing, documentation, consistency, scalability, simplicity`
+
+Input: `/iterative-review ../../etc/passwd`
+Action: `ERROR: invalid path: security validation failed`
+
+Input: `/iterative-review file.ts --verbose`
+Action: `ERROR: unknown flag: --verbose`
+
+Input: `/iterative-review src/ --pr=456`
+Action: `ERROR: specify either a path or --mr/--pr, not both`
+
+Input: `/iterative-review --pr=0`
+Action: `ERROR: --mr/--pr must be an integer in 1-999999, got: 0`
+
+Input: `/iterative-review file.ts --perspectives=security,performance --rounds=3`
+Action: 2 rounds (security, performance); report includes `Note: --rounds=3 ignored; 2 perspectives selected.`

@@ -1,136 +1,119 @@
 ---
 name: decide
-description: Zero-dependency decision support using embedded frameworks (ICE/RICE/First Principles)
-allowed-tools: AskUserQuestion
+description: Framework-driven decision support for technology selection, feature prioritization, and architecture evaluation. Applies ICE/RICE scoring, Eisenhower Matrix, Pre-mortem, Spike, and First Principles to produce a conclusion-first recommendation. Use before implementation when comparing options, ranking a task list, or deciding what to build next.
+argument-hint: "<question or options to evaluate>"
+allowed-tools: Read AskUserQuestion
 ---
-
 
 # /decide - Decision Support Command
 
 Arguments: $ARGUMENTS
 
-Framework-driven decision support using ICE/RICE scoring, Eisenhower Matrix, and First Principles for technology selection, feature prioritization, and architecture evaluation.
-
 Purpose:
 - Systematic decision making with quantitative frameworks
 - Pre-implementation option comparison and idea generation
-- Conclusion-first format with clear recommendations
+- Conclusion-first output with an explicit recommendation
 
-Timing: Before implementation, when comparing options
-
-Output: Conclusion-first format with comparison tables
+Timing: before implementation, when comparing options.
 
 ## Execution Flow
 
-1. Parse and validate $ARGUMENTS
-2. Auto-detect decision type and output format
-3. Apply appropriate framework (ICE/RICE/Eisenhower/First Principles - embedded in this skill)
-4. Generate conclusion-first output with detailed analysis
+1. Parse and validate $ARGUMENTS — see Argument Validation
+2. Detect output format and framework — see Auto-Detection
+3. Load scoring criteria from the reference file when scoring — see Framework Reference
+4. Apply the selected framework and emit the matching output pattern — see Output Patterns
 
 ## Argument Validation
 
-Parse $ARGUMENTS:
-- Extract question or options text
-- Detect output format (single recommendation vs multiple proposals)
-- Detect framework type (tech selection vs prioritization vs architecture)
+Parse $ARGUMENTS as plain text:
+- Extract the question or the option list
+- Detect output format and framework per Auto-Detection
 
-If $ARGUMENTS empty or unclear:
-- Use AskUserQuestion to clarify evaluation target
-- Example: "What options or question would you like to evaluate?"
+$ARGUMENTS is never passed to a shell, a file path, or a URL — it is analyzed as text only. No sanitization beyond the checks below is required.
 
-Input sanitization: Not required (AskUserQuestion/text analysis only, no Bash/file paths)
+If $ARGUMENTS is empty:
+  Use AskUserQuestion: "What options or question would you like to evaluate?"
+  Accept the answer as the evaluation target and continue.
 
-### Detection Flow
+If $ARGUMENTS names no comparable candidate and no decision question (for example a single bare noun):
+  Use AskUserQuestion to offer the interpretations you can act on (compare against an alternative / rank a list / evaluate necessity).
+  If the user cancels: emit the user-error message from Error Handling and stop.
 
-Detect from $ARGUMENTS as plain text:
-1. **Output format**: "vs"/"compare" → single recommendation; "what to"/"priorities" → multiple proposals; numbered list (`1. A 2. B`) → prioritization; otherwise auto-detect by candidate count (≤2 → single, 3+ → multiple)
-2. **Framework**: library/framework/tool keywords → ICE; architecture/design/approach → RICE + Pre-mortem; risk/uncertain/confidence → Confidence-weighted ICE; default → ICE
+## Auto-Detection
 
-## Auto-Detection Logic
+Apply in order. The first matching row wins.
 
-### Decision Table
+| Input pattern | Output format | Framework | Example |
+|---|---|---|---|
+| Numbered list `1. A 2. B 3. C` | Pattern C (rank all) | Eisenhower + ICE | "1. Dark mode 2. Export" |
+| "A vs B", "which is better", "compare" | Pattern A (single) | ICE | "Zod vs Yup?" |
+| "what to improve", "what to add", "priorities" | Pattern B (multiple) | ICE | "What tests to add?" |
+| Architecture / system design / approach | Pattern D (single) | RICE + Pre-mortem | "microservices vs monolith" |
+| Risk / uncertainty / low-confidence keywords | Pattern D (single) | RICE + Spike | "uncertain about scaling" |
+| Technology / library / tool names | by candidate count | ICE | "validation library choice" |
+| 3+ tasks or features | Pattern C | Eisenhower + ICE | Multiple feature list |
+| No match | by candidate count | ICE + First Principles | General questions |
 
-| Input Pattern | Output Format | Framework | Example |
-|---------------|---------------|-----------|---------|
-| "A vs B", "which is better", "compare" | Single recommendation | ICE Score | "Zod vs Yup?" |
-| "what to improve", "what to add", "priorities" | Multiple proposals (top 3-5) | ICE Score | "What tests to add?" |
-| Numbered list "1. A 2. B 3. C" | Prioritization (rank all) | Eisenhower + ICE | "1. Dark mode 2. Export" |
-| Technology/library/tool names | (auto-detect format) | ICE Score | "validation library choice" |
-| Architecture/system design/approach | (auto-detect format) | RICE + Pre-mortem | "microservices vs monolith" |
-| Risk/uncertainty/confidence keywords | (auto-detect format) | Confidence + Spike | "uncertain about scaling" |
-| 3+ tasks or features | (auto-detect format) | Eisenhower + ICE | Multiple feature list |
-| Default (no match) | auto-decide by candidate count | ICE + First Principles | General questions |
+Candidate-count rule (used only by rows that say "by candidate count"):
+- 2 or fewer candidates → Pattern A
+- 3 or more candidates → Pattern B
 
-Auto-decide logic for output format:
-- 2 or fewer candidates → single recommendation
-- 3+ candidates → multiple proposals
+Framework precedence when a row matches on both domain and shape: the row order above is the precedence. A numbered list of architecture options is Pattern C ranked with Eisenhower + ICE, not Pattern D.
 
-### Implementation Flow
+## Framework Reference
 
-```
-Step 1: Detect output format from $ARGUMENTS
-  - Check explicit patterns (vs/compare/improve/add)
-  - Check for numbered lists
-  - Apply auto-decide logic if no match
+Formulas — use these directly, no file read needed:
 
-Step 2: Detect framework type from $ARGUMENTS
-  - Check domain keywords (tech/architecture/risk)
-  - Apply default framework if no match
+**ICE Score**: `(Impact × Confidence × Ease) / 3`
+- Impact 1-10, Confidence 0-100% (use as 0.0-1.0), Ease 1-10 (10 = easiest)
+- Priority: 20 and above = Highest, 10 to under 20 = High, 5 to under 10 = Medium, under 5 = Low
 
-Step 3: Apply selected framework and generate output
-```
+**RICE Score**: `(Reach × Impact × Confidence) / Effort`
+- Reach = users or executions per period, Impact ∈ {0.25, 0.5, 1, 2, 3}, Effort = person-months
+- Priority: relative ranking within the candidate set (top 20% = highest)
 
-## Framework Reference (Quick Guide)
+**Eisenhower Matrix**: Q1 urgent+important = do now, Q2 important only = schedule, Q3 urgent only = delegate, Q4 neither = drop
 
-### Available Frameworks
+**First Principles**: state the premise, decompose it, rebuild from fundamentals, decide MUST / YAGNI / CONDITIONAL
 
-**1. ICE Score**: `(Impact × Confidence × Ease) / 3`
-- Impact: 1-10, Confidence: 0-100%, Ease: 1-10
-- Priority: 20+ = Highest, 10-20 = High, 5-10 = Medium, <5 = Low
+Read `${CLAUDE_SKILL_DIR}/frameworks.md` when — and only when — you need any of:
+- Impact / Ease / Confidence rating rubrics (before assigning numeric scores)
+- The Pre-mortem procedure (Pattern D, architecture decisions)
+- The Spike procedure (Pattern D, Confidence below 50%)
+- Eisenhower urgency and importance criteria (Pattern C)
+- Scoring anti-patterns, when a score looks implausible
 
-**2. RICE Score**: `(Reach × Impact × Confidence) / Effort`
-- Reach: user count/frequency, Impact: 0.25-3, Effort: person-months
-- Priority: Relative ranking (top 20% = highest)
+Do not read it for a Pattern A comparison whose scores you can already justify from the formulas above.
 
-**3. Eisenhower Matrix**: Urgent/Important quadrants
-- Quadrant 1: Do now, Quadrant 2: Schedule, Quadrant 3: Delegate, Quadrant 4: Don't do
-
-**4. First Principles**: Question assumptions, reconstruct from fundamentals
-- Apply YAGNI principle, verify necessity
-
-**詳細な評価基準・ワークフロー・アンチパターン**: 以下に展開済み
-
-```!
-cat "${CLAUDE_SKILL_DIR}/frameworks.md"
-```
-
-
+If the file cannot be read: state `NOTE: frameworks.md unavailable — scoring rubric not applied` in the output, score from the formulas above, and continue. This is not a fatal error.
 
 ## Output Patterns
 
+All patterns are conclusion-first: recommendation and reason before analysis.
+
 ### Pattern A: Single Recommendation
 
-Used when: Comparing 2 options or explicit "A vs B" question
+Used when comparing 2 candidates or an explicit "A vs B" question.
 
-Structure:
 ```
-## Conclusion: [Recommended Option] is recommended
+## Conclusion: [Option] is recommended
 
 Reason: ICE Score [value] ([priority level]). [1-2 sentence rationale]
 
 ## Detailed Analysis
 
 ### ICE Score Evaluation
-[Comparison table]
+[Comparison table: Option | Impact | Confidence | Ease | ICE Score]
+[Rationale per axis]
 
 ### First Principles Verification
-[Premise decomposition]
+[Premise / decomposition / decision]
 
 ### Alternative Comparison
-[Cost/benefit table]
+[Cost-benefit table]
 
 ### Risk Assessment
-[Security/Technical/Development risks]
+[Security / Technical / Development — see Risk Assessment Template]
 
 ### Final Recommendation
 [Action items]
@@ -138,176 +121,148 @@ Reason: ICE Score [value] ([priority level]). [1-2 sentence rationale]
 
 ### Pattern B: Multiple Proposals
 
-Used when: "What to improve?" or "What should we do?" questions
+Used for "what to improve" / "what should we do" questions.
 
-For 10+ items: use Impact-only score to narrow to top 10 first, then apply full ICE + First Principles to that subset.
+If more than 10 candidates: rank by Impact alone to reach a shortlist of 10, then apply full ICE to that shortlist. Report the final 3-5 in the conclusion regardless of shortlist size, and state how many candidates were dropped at the Impact-only stage.
 
-Structure:
 ```
-## Conclusion: Implement in following order
+## Conclusion: Implement in the following order
 
-1. [Proposal 1] (ICE [score]) - Highest priority
-   Reason: [Impact/Confidence/Ease rationale]
+1. [Proposal] (ICE [score]) - Highest priority
+   Reason: [Impact / Confidence / Ease rationale]
+2. [Proposal] (ICE [score]) - High priority
+   Reason: [...]
+3. [Proposal] (ICE [score]) - Medium priority
+   Reason: [...]
 
-2. [Proposal 2] (ICE [score]) - High priority
-   Reason: [Impact/Confidence/Ease rationale]
-
-3. [Proposal 3] (ICE [score]) - Medium priority
-   Reason: [Impact/Confidence/Ease rationale]
-
-Recommended action: Implement top 2 in current sprint
+Recommended action: [scope for the current sprint]
 
 ## Detailed Analysis
 
-### ICE Score Evaluation (All Candidates)
-[Comparison table with 3-5 items]
+### ICE Score Evaluation (shortlist)
+[Comparison table]
 
-### First Principles Verification (Top 3)
-[Necessity verification for each]
-
-### Risk Assessment (Top 3)
-[Risks for each proposal]
-
+### First Principles Verification (top 3)
+### Risk Assessment (top 3)
 ### Final Recommendation
-[Categorize: Immediate/Next sprint/Backlog/Reject]
+[Categorize: Immediate / Next sprint / Backlog / Reject]
 ```
 
 ### Pattern C: Prioritization
 
-Used when: Numbered list provided in $ARGUMENTS
+Used when $ARGUMENTS contains a numbered list, or 3+ tasks.
 
-Structure:
 ```
 ## Conclusion: Priority ranking
 
-1. [Task A] (ICE [score]) - Immediate
-2. [Task B] (ICE [score]) - Next sprint
-3. [Task C] (ICE [score]) - Rejected (YAGNI)
+1. [Task] (ICE [score]) - Immediate
+2. [Task] (ICE [score]) - Next sprint
+3. [Task] (ICE [score]) - Rejected (YAGNI)
 
-Reason: [Eisenhower Matrix + ICE Score + First Principles integration]
+Reason: [Eisenhower + ICE + First Principles integration]
 
 ## Detailed Analysis
 
-### Phase 1: Eisenhower Matrix (Rough Filter)
-[Urgency/Importance quadrant table]
+### Phase 1: Eisenhower Matrix (rough filter)
+[Quadrant table]
 
-### Phase 2: ICE Score (Detailed Evaluation)
+### Phase 2: ICE Score (detailed evaluation)
 [Comparison table]
 
-### Phase 3: First Principles Verification (Top 3)
-[Necessity verification]
-
+### Phase 3: First Principles Verification (top 3)
 ### Final Priority
 [Categorized action plan]
 ```
 
-## Framework Application
+### Pattern D: Architecture / High-Uncertainty Decision
 
-### Scoring Requirements
+Used for architecture and approach decisions, and for decisions whose Confidence is below 50%.
 
-Always include rationale for each score:
-- **Impact**: Specific effect on system/users
-- **Confidence**: Evidence source (past cases, data, logical reasoning)
-- **Ease**: Time estimate and complexity assessment
+Score with RICE, not ICE — architecture decisions differ mainly in Effort and blast radius, which ICE's Ease axis flattens.
 
-### First Principles Verification
-
-For top candidates, apply YAGNI principle:
 ```
-Premise → Decomposition → Reconstruction from fundamentals
-Decision: MUST/YAGNI/CONDITIONAL
+## Conclusion: [Option] is recommended
+[or] ## Conclusion: Decision deferred — run a Spike first
+
+Reason: RICE [value], [rank] of [n]. [1-2 sentence rationale]
+
+## Detailed Analysis
+
+### RICE Score Evaluation
+[Table: Option | Reach | Impact | Confidence | Effort | RICE]
+[Rationale per axis, Effort in person-months]
+
+### Pre-mortem (recommended option)
+[3-5 failure scenarios, each with probability / detectability / mitigation]
+[If any scenario has no viable mitigation: recommend the runner-up instead]
+
+### Spike Plan (only when Confidence < 50%)
+Question: [one sentence]
+Success criteria: [numeric]
+Timebox: [1-3 days]
+Confidence after: re-evaluate and re-run this skill
+
+### Risk Assessment
+### Final Recommendation
+[Action items, including the reversal cost of this decision]
 ```
+
+## Scoring Requirements
+
+Every score carries a rationale:
+- **Impact**: the specific effect on system or users
+- **Confidence**: the evidence source (past case, data, or stated reasoning)
+- **Ease / Effort**: a time estimate and a complexity note
+
+Compute every score with the formula in Framework Reference and show the arithmetic operands in the table. A stated score that does not match its own operands is a defect.
+
+Apply First Principles to the top candidates before recommending: a high score is not proof of necessity. Decide MUST / YAGNI / CONDITIONAL.
 
 ### Risk Assessment Template
 
-For each top option:
 ```
-Security Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
-Technical Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
-Development Risk: [HIGH/MEDIUM/LOW] - [Details] - Mitigation: [...]
-```
-
-## Output Requirements
-
-### Conclusion-First Format
-
-```
-## Conclusion: [Clear recommendation]
-Reason: [Score + key rationale in 1-2 sentences]
-
-## Detailed Analysis
-[Framework-specific analysis]
+Security Risk:    [HIGH/MEDIUM/LOW] - [details] - Mitigation: [...]
+Technical Risk:   [HIGH/MEDIUM/LOW] - [details] - Mitigation: [...]
+Development Risk: [HIGH/MEDIUM/LOW] - [details] - Mitigation: [...]
 ```
 
-### Quality Standards
+### Final Recommendation Contents
 
-- **Numerical Justification**: Always include rationale (e.g., "Impact: 7 (100x/week, DX improvement)")
-- **Confidence**: Use criteria from frameworks.md, avoid over-estimation
-- **YAGNI Principle**: High score ≠ necessity, verify with First Principles
-- **Action Items**: Include implementation steps, metrics, rollback strategy, post-check with /iterative-review
+Include implementation steps, success metrics, and a rollback or reversal path.
 
 ## Error Handling
 
-Unclear $ARGUMENTS:
-```
-IF $ARGUMENTS empty OR ambiguous:
-    Use AskUserQuestion for clarification
-    Example: "Please specify options or question to evaluate"
-```
+**Success**: Conclusion + Detailed Analysis + Final Recommendation.
 
-## Relationship with /iterative-review
-
-Role separation:
-
-| Command | Purpose | Timing | Output Format |
-|---------|---------|--------|---------------|
-| /decide | Idea generation and decision making | Pre-implementation | Conclusion-first |
-| /iterative-review | Multi-perspective review | Post-implementation | Round-by-round analysis |
-
-Recommended workflow:
-```
-1. /decide "Zod vs Yup"
-   → Conclusion: Zod recommended
-
-2. Implement with Zod
-
-3. /iterative-review src/validation/schema.ts
-   → Quality check and refinement
-```
-
-## Error Output Format
-
-**Success**: Conclusion + Detailed Analysis + Final Recommendation を出力
-
-**User error** (引数不明・キャンセル):
+**User error** (no evaluation target, or user cancelled the clarification):
 ```
 ERROR: No evaluation target specified (Section: Argument Validation)
-Operation cancelled by user
+Provide options or a question to evaluate, e.g. /decide "Zod vs Yup?"
 ```
 
-**Tool failure**:
+**Tool failure** (AskUserQuestion unavailable):
 ```
 ERROR: AskUserQuestion tool failed (Section: Argument Validation)
-System error - retry or report issue
+Re-run with the evaluation target as an argument, e.g. /decide "Zod vs Yup?"
 ```
 
+**Degraded** (frameworks.md unreadable): not an error. Emit the NOTE line from Framework Reference and continue with the formulas.
+
+Never include absolute paths, file system details, or tool output in these messages.
 
 ## Examples
 
 ### Example 1: Technology Selection
 
-**Input**: `/decide "Data validation library choice. Zod vs Yup?"`
+Input: `/decide "Data validation library choice. Zod vs Yup?"`
 
-**Detection**:
-- Pattern: "vs" → Single recommendation
-- Domain: library names → ICE Score framework
+Detection: "vs" → Pattern A; library names → ICE.
 
-**Expected Output**:
 ```
 ## Conclusion: Zod is recommended
 
-Reason: ICE Score 21.6 (Highest priority). Superior type safety,
-better DX, seamless TypeScript integration.
+Reason: ICE Score 21.6 (Highest priority). Superior type inference and
+seamless TypeScript integration outweigh Yup's larger install base.
 
 ## Detailed Analysis
 
@@ -318,64 +273,87 @@ better DX, seamless TypeScript integration.
 | Yup    | 7      | 85%        | 8    | 15.9      |
 
 Impact rationale:
-- Zod: Type inference reduces boilerplate (8/10)
-- Yup: Established library with wide adoption (7/10)
+- Zod: type inference removes duplicate type declarations (8/10)
+- Yup: established library, wide adoption (7/10)
 
 Confidence rationale:
-- Zod: 90% - successful migration cases documented
-- Yup: 85% - well-known patterns, proven track record
+- Zod: 90% - migration cases documented in the ecosystem
+- Yup: 85% - proven track record, well-known patterns
 ```
 
 ### Example 2: Feature Prioritization
 
-**Input**: `/decide "What tests should we add to improve coverage?"`
+Input: `/decide "What tests should we add to improve coverage?"`
 
-**Detection**:
-- Pattern: "what to add" → Multiple proposals
-- Domain: testing → ICE Score framework
+Detection: "what to add" → Pattern B; testing domain → ICE.
 
-**Expected Output**:
 ```
-## Conclusion: Implement in following order
+## Conclusion: Implement in the following order
 
-1. Integration tests for API endpoints (ICE 16.5) - Highest priority
-   Reason: High impact (8), high confidence (75%), moderate ease (7)
+1. Integration tests for API endpoints (ICE 14.0) - High priority
+   Reason: Impact 8, Confidence 75%, Ease 7 → (8 × 0.75 × 7) / 3
 
-2. E2E tests for checkout flow (ICE 14.0) - High priority
-   Reason: Critical path (9), medium confidence (70%), lower ease (5)
+2. Unit tests for utility functions (ICE 12.8) - High priority
+   Reason: Impact 6, Confidence 80%, Ease 8 → (6 × 0.80 × 8) / 3
 
-3. Unit tests for utility functions (ICE 12.0) - Medium priority
-   Reason: Medium impact (6), high confidence (80%), high ease (8)
+3. E2E tests for checkout flow (ICE 10.5) - High priority
+   Reason: Impact 9, Confidence 70%, Ease 5 → (9 × 0.70 × 5) / 3
+
+Recommended action: implement the top 2 in the current sprint
 ```
 
 ### Example 3: Task Prioritization
 
-**Input**: `/decide "Priority for these features: 1. Dark mode 2. Export 3. Notifications"`
+Input: `/decide "Priority for these features: 1. Dark mode 2. Export 3. Notifications"`
 
-**Detection**:
-- Pattern: numbered list → Prioritization
-- Domain: features → Eisenhower Matrix + ICE Score
+Detection: numbered list → Pattern C; Eisenhower + ICE.
 
-**Expected Output**:
 ```
 ## Conclusion: Priority ranking
 
-1. Notifications (ICE 18.0) - Immediate (Urgent & Important)
-2. Export (ICE 12.5) - Next sprint (Important, not urgent)
-3. Dark mode (ICE 8.0) - Rejected (YAGNI - nice-to-have)
+1. Notifications (ICE 18.0) - Immediate (Q1: urgent and important)
+2. Export (ICE 12.5) - Next sprint (Q2: important, not urgent)
+3. Dark mode (ICE 8.0) - Rejected (YAGNI - cosmetic preference)
 
-Reason: Notifications directly impact user engagement (high impact),
-Export enables critical workflows, Dark mode is cosmetic preference.
+Reason: Notifications drive user engagement, Export unblocks a critical
+workflow, Dark mode changes no user outcome.
 ```
 
-### Example 4: Interactive Mode
+### Example 4: Architecture Decision
 
-**Input**: `/decide`
+Input: `/decide "Should we split the monolith into microservices?"`
 
-**Action**: Use AskUserQuestion to get evaluation target
-- Question: "What options or question would you like to evaluate?"
-- User provides input via "Other" option
-- Proceed with detection and analysis
+Detection: architecture keywords → Pattern D; RICE + Pre-mortem.
 
----
+```
+## Conclusion: Modular monolith is recommended
 
+Reason: RICE 96, rank 1 of 2. Microservices cost 5x the Effort without a
+matching Reach gain at current scale.
+
+### RICE Score Evaluation
+| Option           | Reach | Impact | Confidence | Effort | RICE |
+|------------------|-------|--------|------------|--------|------|
+| Modular monolith | 120   | 2      | 60%        | 1.5    | 96   |
+| Microservices    | 120   | 2      | 50%        | 8.0    | 15   |
+
+Effort rationale: monolith module boundaries are an in-place refactor
+(1.5 person-months); microservices add deploy, discovery, and observability
+infrastructure (8 person-months).
+
+### Pre-mortem (microservices, the rejected option)
+- Distributed transactions break: probability HIGH, detectability LOW
+  (surfaces as data inconsistency after deploy) - no viable mitigation
+  at current team size → decisive against adoption
+```
+
+### Example 5: Missing Argument
+
+Input: `/decide`
+
+Action: AskUserQuestion — "What options or question would you like to evaluate?"
+If the user cancels:
+```
+ERROR: No evaluation target specified (Section: Argument Validation)
+Provide options or a question to evaluate, e.g. /decide "Zod vs Yup?"
+```

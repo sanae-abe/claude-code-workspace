@@ -107,7 +107,7 @@ ln -sf ~/projects/claude-code-workspace/rules/tech-stacks/*.md ~/.claude/rules/t
 - Conclusion-first format with detailed comparison tables
 
 **`/plan-review`** - Create implementation plan and review
-- Usage: `/plan-review "feature name" [--rounds=3] [--perspectives=security,performance]`
+- Usage: `/plan-review "feature name" [--perspectives=security,performance]`
 - Task breakdown, automatic review, tasks.yml updates
 
 ### Development & Debugging
@@ -145,7 +145,7 @@ ln -sf ~/projects/claude-code-workspace/rules/tech-stacks/*.md ~/.claude/rules/t
 ### Code Quality & Review
 
 **`/iterative-review`** - Multi-perspective code review
-- Usage: `/iterative-review <target> [--rounds=4] [--perspectives=...] [--skip-necessity]`
+- Usage: `/iterative-review <target|--pr=N|--mr=N> [--perspectives=...] [--skip-necessity]`
 - Round 0: Necessity review (deletion/simplification)
 - Security, performance, maintainability analysis
 
