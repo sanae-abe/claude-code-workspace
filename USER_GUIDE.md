@@ -133,10 +133,6 @@ code .claude/CLAUDE.md
 | コマンド | 用途 |
 |---------|------|
 | `/web-dev [ポート指定・環境設定オプション]` | フロントエンド開発環境の迅速な起動と設定 |
-| `/api-dev [ポート指定・環境設定・言語指定]` | バックエンドAPI開発環境の迅速な起動と設定 |
-| `/ds-notebook [ポート指定・環境指定・拡張機能オプション]` | Jupyter Notebook/Lab開発環境の迅速な起動と設定 |
-| `/mobile-dev [--ios・--android・--device指定]` | iOS/Android/Cross-platformモバイルアプリ開発環境の迅速な起動 |
-| `/web-build [--analyze・環境指定オプション]` | 本番環境対応の最適化されたWebアプリケーションビルド |
 
 ### Git ワークフロー
 
@@ -278,8 +274,8 @@ cldev lr problems
 # 2. 最適化
 /optimize レンダリングパフォーマンス
 
-# 3. ビルド確認
-/web-build --analyze
+# 3. ビルド確認（対応スキルなし。プロジェクトのビルドコマンドを直接実行）
+npm run build && npx size-limit
 
 # 4. コミット
 /commit
